@@ -26,7 +26,15 @@ HTML_TEMPLATE = """
 </html>
 """
 
+async def check_kill_switch(db):
+    settings = await db.settings.find_one({"key": "global"})
+    if settings and settings.get("payments_enabled") is False:
+        reason = settings.get("kill_switch_reason") or "Mantenimiento temporal"
+        raise HTTPException(status_code=503, detail=f"Kill Switch activo: {reason}")
+
+
 async def ensure_stripe_customer(db, user_id: str, email: str) -> str:
+    await check_kill_switch(db)
     user = await db.users.find_one({"id": user_id})
     if user and user.get("stripe_customer_id"):
         return user["stripe_customer_id"]
@@ -37,6 +45,7 @@ async def ensure_stripe_customer(db, user_id: str, email: str) -> str:
 @router.post("/setup-intent", response_model=SetupIntentResponse)
 async def create_setup_intent(user: UserContext = Depends(get_current_user)):
     db = await get_db()
+    await check_kill_switch(db)
     customer_id = await ensure_stripe_customer(db, user.id, user.email)
     intent = stripe.SetupIntent.create(customer=customer_id, payment_method_types=["card"], metadata={"paljale_user_id": user.id})
     return {"client_secret": intent.client_secret, "stripe_customer_id": customer_id}
@@ -44,6 +53,7 @@ async def create_setup_intent(user: UserContext = Depends(get_current_user)):
 @router.get("/payment-methods")
 async def list_payment_methods(user: UserContext = Depends(get_current_user)):
     db = await get_db()
+    await check_kill_switch(db)
     user_doc = await db.users.find_one({"id": user.id})
     customer_id = user_doc.get("stripe_customer_id") if user_doc else None
     if not customer_id:
@@ -56,21 +66,19 @@ async def list_payment_methods(user: UserContext = Depends(get_current_user)):
 
 @router.delete("/payment-methods/{pm_id}")
 async def delete_payment_method(pm_id: str, user: UserContext = Depends(get_current_user)):
+    db = await get_db()
+    await check_kill_switch(db)
     try:
         stripe.PaymentMethod.detach(pm_id)
     except stripe.error.StripeError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    db = await get_db()
     await db.users.update_one({"id": user.id, "default_payment_method_id": pm_id}, {"$unset": {"default_payment_method_id": ""}})
     return {"success": True}
 
 @router.post("/checkout-session")
 async def create_checkout_session(payload: dict, user: UserContext = Depends(get_current_user)):
     db = await get_db()
-    settings = await db.settings.find_one({"key": "global"})
-    if settings and settings.get("payments_enabled") is False:
-        reason = settings.get("kill_switch_reason") or "Mantenimiento temporal"
-        raise HTTPException(status_code=503, detail=f"Kill Switch activo: {reason}")
+    await check_kill_switch(db)
     order_id = payload.get("order_id")
     order = await db.orders.find_one({"id": order_id, "user_id": user.id})
     if not order:
@@ -84,10 +92,7 @@ async def create_checkout_session(payload: dict, user: UserContext = Depends(get
 @router.post("/one-tap")
 async def one_tap_payment(payload: OneTapPaymentRequest, user: UserContext = Depends(get_current_user)):
     db = await get_db()
-    settings = await db.settings.find_one({"key": "global"})
-    if settings and settings.get("payments_enabled") is False:
-        reason = settings.get("kill_switch_reason") or "Mantenimiento temporal"
-        raise HTTPException(status_code=503, detail=f"Kill Switch activo: {reason}")
+    await check_kill_switch(db)
     order = await db.orders.find_one({"id": payload.order_id, "user_id": user.id})
     if not order:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
@@ -175,6 +180,7 @@ async def payment_cancel():
     return HTML_TEMPLATE.format(title="Pago Cancelado", message="La transacción fue cancelada o no se completó.")
 
 async def auto_process_commission_on_return(db, order_id: str):
+    await check_kill_switch(db)
     order = await db.orders.find_one({"id": order_id})
     if not order:
         return False
@@ -206,6 +212,7 @@ async def auto_process_commission_on_return(db, order_id: str):
     return True
 
 async def transfer_to_provider(db, order_id: str):
+    await check_kill_switch(db)
     order = await db.orders.find_one({"id": order_id})
     if not order:
         return False

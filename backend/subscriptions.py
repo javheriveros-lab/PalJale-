@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime
 from database import get_db
 from auth_utils import require_provider, UserContext
+from payments import check_kill_switch
 
 router = APIRouter(prefix="/api/subscriptions", tags=["Subscriptions Pro"])
 
@@ -14,6 +15,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "https://paljale.mx")
 @router.post("/pro")
 async def subscribe_pro(user: UserContext = Depends(require_provider)):
     db = await get_db()
+    await check_kill_switch(db)
     doc = await db.users.find_one({"id": user.id})
     customer_id = doc.get("stripe_customer_id") if doc else None
     if not customer_id:
@@ -26,6 +28,7 @@ async def subscribe_pro(user: UserContext = Depends(require_provider)):
 @router.get("/pro/status")
 async def get_pro_status(user: UserContext = Depends(require_provider)):
     db = await get_db()
+    await check_kill_switch(db)
     doc = await db.users.find_one({"id": user.id})
     sub_id = doc.get("pro_subscription_id") if doc else None
     if not sub_id:
@@ -41,6 +44,7 @@ async def get_pro_status(user: UserContext = Depends(require_provider)):
 @router.post("/pro/cancel")
 async def cancel_pro(user: UserContext = Depends(require_provider)):
     db = await get_db()
+    await check_kill_switch(db)
     doc = await db.users.find_one({"id": user.id})
     sub_id = doc.get("pro_subscription_id") if doc else None
     if not sub_id:

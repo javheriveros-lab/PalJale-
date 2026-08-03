@@ -5,6 +5,7 @@ from datetime import datetime
 from database import get_db
 from auth_utils import require_provider, UserContext
 from models import ConnectAccountRequest, ConnectAccountResponse, ConnectStatusResponse
+from payments import check_kill_switch
 
 router = APIRouter(prefix="/api/connect", tags=["Stripe Connect"])
 
@@ -14,6 +15,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "https://paljale.mx")
 @router.post("/account", response_model=ConnectAccountResponse)
 async def create_connect_account(payload: ConnectAccountRequest, user: UserContext = Depends(require_provider)):
     db = await get_db()
+    await check_kill_switch(db)
     existing = await db.users.find_one({"id": user.id})
     if existing and existing.get("stripe_connect_account_id"):
         account_id = existing["stripe_connect_account_id"]
@@ -27,6 +29,7 @@ async def create_connect_account(payload: ConnectAccountRequest, user: UserConte
 @router.get("/status", response_model=ConnectStatusResponse)
 async def get_connect_status(user: UserContext = Depends(require_provider)):
     db = await get_db()
+    await check_kill_switch(db)
     doc = await db.users.find_one({"id": user.id})
     if not doc or not doc.get("stripe_connect_account_id"):
         return ConnectStatusResponse(stripe_account_id=None, status=None, charges_enabled=False, payouts_enabled=False, requirements_due=True)
