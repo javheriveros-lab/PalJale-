@@ -16,6 +16,14 @@ async def register_push_token(payload: dict, user: UserContext = Depends(get_cur
     return {"success": True}
 
 @router.delete("/register")
+async def unregister_push_token_legacy(payload: dict, user: UserContext = Depends(get_current_user)):
+    db = await get_db()
+    token = payload.get("token")
+    await db.push_tokens.delete_one({"user_id": user.id, "token": token})
+    return {"success": True}
+
+
+@router.delete("/unregister")
 async def unregister_push_token(payload: dict, user: UserContext = Depends(get_current_user)):
     db = await get_db()
     token = payload.get("token")
