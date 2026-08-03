@@ -125,23 +125,28 @@ async def me(user: UserContext = Depends(get_current_user)):
 
 
 @router.post("/seed-admin")
-async def seed_admin():
-    """Crea el usuario admin inicial si no existe. Requiere ADMIN_EMAIL y ADMIN_PASSWORD en el .env."""
+async def seed_admin(payload: dict):
+    """Crea el usuario admin inicial si no existe. Requiere ADMIN_EMAIL y ADMIN_PASSWORD en el .env.
+    El ADMIN_PASSWORD debe enviarse en el payload para evitar que cualquiera cree el primer admin."""
     db = await get_db()
     existing = await db.users.find_one({"email": ADMIN_EMAIL.lower()})
     if existing:
         return {"success": False, "message": "El admin ya existe"}
 
-    password = os.getenv("ADMIN_PASSWORD")
-    if not password:
-        raise HTTPException(status_code=500, detail="ADMIN_PASSWORD no configurado")
+    admin_password = os.getenv("ADMIN_PASSWORD")
+    if not admin_password:
+        raise HTTPException(status_code=500, detail="ADMIN_PASSWORD no configurado en el servidor")
+
+    provided = payload.get("password", "")
+    if not provided or provided != admin_password:
+        raise HTTPException(status_code=403, detail="Credencial de setup inválida")
 
     user_id = f"usr_{ObjectId()}"
     now = datetime.utcnow().isoformat()
     await db.users.insert_one({
         "id": user_id,
         "email": ADMIN_EMAIL.lower(),
-        "password_hash": _hash_password(password),
+        "password_hash": _hash_password(admin_password),
         "full_name": "Administrador Pal Jale",
         "phone": "",
         "role": "admin",
