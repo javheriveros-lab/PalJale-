@@ -1,5 +1,6 @@
 import os
-import base64
+import tempfile
+from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from io import BytesIO
@@ -7,12 +8,31 @@ from datetime import datetime
 from database import get_db
 from auth_utils import get_current_user, UserContext
 
+import httpx
+
 try:
     from fpdf import FPDF
 except ImportError:
     FPDF = None
 
 router = APIRouter(prefix="/api/contracts", tags=["Contracts"])
+
+
+async def _download_image_to_temp(url: str, suffix: str = ".jpg") -> str | None:
+    if not url or not url.startswith("http"):
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            tmp_dir = Path(tempfile.gettempdir()) / "paljale_contracts"
+            tmp_dir.mkdir(parents=True, exist_ok=True)
+            tmp_path = tmp_dir / f"{os.urandom(8).hex()}{suffix}"
+            tmp_path.write_bytes(response.content)
+            return str(tmp_path)
+    except Exception:
+        return None
+
 
 class ContractPDF(FPDF):
     def header(self):
@@ -25,11 +45,13 @@ class ContractPDF(FPDF):
         self.cell(0, 6, "Marketplace 360° de Construcción", 0, 1, "C")
         self.line(10, self.get_y(), 200, self.get_y())
         self.ln(5)
+
     def footer(self):
         self.set_y(-15)
         self.set_font("Arial", "I", 8)
         self.set_text_color(128, 128, 128)
         self.cell(0, 10, f"Página {self.page_no()} | Documento generado el {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}", 0, 0, "C")
+
 
 @router.get("/{order_id}/pdf")
 async def generate_contract_pdf(order_id: str, user: UserContext = Depends(get_current_user)):
@@ -107,75 +129,83 @@ async def generate_contract_pdf(order_id: str, user: UserContext = Depends(get_c
     pdf.add_page()
     pdf.set_font("Arial", "B", 12)
     pdf.cell(0, 8, "5. EVIDENCIA DE ENTREGA Y FIRMAS", 0, 1)
+
+    downloaded_paths = []
     dc = order.get("delivery_checklist", {})
-    if dc.get("fotos_b64"):
+    foto_urls = dc.get("foto_urls") or dc.get("fotos_b64") or []
+    if foto_urls:
         pdf.set_font("Arial", "B", 10)
         pdf.cell(0, 6, "Fotos de entrega:", 0, 1)
-        for idx, photo_b64 in enumerate(dc["fotos_b64"][:4]):
-            try:
-                img_data = base64.b64decode(photo_b64.split(",")[-1])
-                tmp_path = f"/tmp/contract_{order_id}_del_{idx}.jpg"
-                with open(tmp_path, "wb") as f:
-                    f.write(img_data)
+        for idx, photo_url in enumerate(foto_urls[:4]):
+            tmp_path = await _download_image_to_temp(photo_url, ".jpg")
+            if tmp_path:
+                downloaded_paths.append(tmp_path)
                 pdf.image(tmp_path, x=10 + (idx % 2) * 95, y=pdf.get_y(), w=85)
                 if idx % 2 == 1:
                     pdf.ln(50)
-                os.remove(tmp_path)
-            except Exception:
-                pass
-        if len(dc["fotos_b64"]) % 2 == 1:
+        if len(foto_urls) % 2 == 1:
             pdf.ln(50)
+
     pdf.set_font("Arial", "B", 10)
     pdf.cell(0, 8, "Firma digital de entrega:", 0, 1)
-    if dc.get("signature_b64"):
-        try:
-            sig_data = base64.b64decode(dc["signature_b64"].split(",")[-1])
-            sig_path = f"/tmp/contract_{order_id}_sig_del.jpg"
-            with open(sig_path, "wb") as f:
-                f.write(sig_data)
+    signature_url = dc.get("signature_url") or dc.get("signature_b64")
+    if signature_url:
+        sig_path = await _download_image_to_temp(signature_url, ".png")
+        if sig_path:
+            downloaded_paths.append(sig_path)
             pdf.image(sig_path, x=10, y=pdf.get_y(), w=80)
             pdf.ln(30)
-            os.remove(sig_path)
-        except Exception:
+        else:
             pdf.cell(0, 6, "[Firma no disponible]", 0, 1)
     else:
         pdf.cell(0, 6, "[Sin firma registrada]", 0, 1)
     pdf.cell(0, 6, f"Firmado por ID: {dc.get('signed_by', 'N/A')} el {dc.get('signed_at', 'N/A')}", 0, 1)
     pdf.ln(5)
+
     rc = order.get("return_checklist", {})
-    if rc.get("fotos_b64"):
+    return_foto_urls = rc.get("foto_urls") or rc.get("fotos_b64") or []
+    if return_foto_urls:
         pdf.set_font("Arial", "B", 10)
         pdf.cell(0, 6, "Fotos de devolución:", 0, 1)
-        for idx, photo_b64 in enumerate(rc["fotos_b64"][:4]):
-            try:
-                img_data = base64.b64decode(photo_b64.split(",")[-1])
-                tmp_path = f"/tmp/contract_{order_id}_ret_{idx}.jpg"
-                with open(tmp_path, "wb") as f:
-                    f.write(img_data)
+        for idx, photo_url in enumerate(return_foto_urls[:4]):
+            tmp_path = await _download_image_to_temp(photo_url, ".jpg")
+            if tmp_path:
+                downloaded_paths.append(tmp_path)
                 pdf.image(tmp_path, x=10 + (idx % 2) * 95, y=pdf.get_y(), w=85)
                 if idx % 2 == 1:
                     pdf.ln(50)
-                os.remove(tmp_path)
-            except Exception:
-                pass
+
     pdf.set_font("Arial", "B", 10)
     pdf.cell(0, 8, "Firma digital de devolución:", 0, 1)
-    if rc.get("signature_b64"):
-        try:
-            sig_data = base64.b64decode(rc["signature_b64"].split(",")[-1])
-            sig_path = f"/tmp/contract_{order_id}_sig_ret.jpg"
-            with open(sig_path, "wb") as f:
-                f.write(sig_data)
+    return_signature_url = rc.get("signature_url") or rc.get("signature_b64")
+    if return_signature_url:
+        sig_path = await _download_image_to_temp(return_signature_url, ".png")
+        if sig_path:
+            downloaded_paths.append(sig_path)
             pdf.image(sig_path, x=10, y=pdf.get_y(), w=80)
             pdf.ln(30)
-            os.remove(sig_path)
-        except Exception:
+        else:
             pdf.cell(0, 6, "[Firma no disponible]", 0, 1)
     else:
         pdf.cell(0, 6, "[Sin firma registrada]", 0, 1)
     pdf.cell(0, 6, f"Firmado por ID: {rc.get('signed_by', 'N/A')} el {rc.get('signed_at', 'N/A')}", 0, 1)
+
     buffer = BytesIO()
     pdf.output(buffer)
     buffer.seek(0)
-    await db.orders.update_one({"id": order_id}, {"$set": {"contract_generated": True, "contract_generated_at": datetime.utcnow().isoformat()}})
-    return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": f"attachment; filename=contrato_paljale_{order_id}.pdf"})
+
+    for p in downloaded_paths:
+        try:
+            Path(p).unlink(missing_ok=True)
+        except Exception:
+            pass
+
+    await db.orders.update_one(
+        {"id": order_id},
+        {"$set": {"contract_generated": True, "contract_generated_at": datetime.utcnow().isoformat()}},
+    )
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=contrato_paljale_{order_id}.pdf"},
+    )
