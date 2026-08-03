@@ -203,8 +203,6 @@ async def update_order_status(
         await on_pickup_ready(db, order["user_id"], order_id)
     elif new_status == "en_transito":
         await on_shipment_departed(db, order["user_id"], order_id)
-    elif new_status == "entregada":
-        await on_order_delivered(db, order["user_id"], order_id)
 
     updated = await db.orders.find_one({"id": order_id}, {"_id": 0})
     return updated
