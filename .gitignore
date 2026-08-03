@@ -14,6 +14,10 @@ __pycache__/
 .env.*
 *.pem
 *.key
+backend/firebase-admin-sdk.json
+backend/*adminsdk*.json
+backend/*service-account*.json
+backend/google-play-service-account.json
 
 # IDE / OS
 .vscode/
