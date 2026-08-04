@@ -12,6 +12,7 @@ __pycache__/
 # Entorno y credenciales
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 backend/firebase-admin-sdk.json
