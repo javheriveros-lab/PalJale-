@@ -57,6 +57,11 @@ async def featured_pro_products(limit: int = 10):
     db = await get_db()
     pro_users = await db.users.find({"is_pro": True}, {"id": 1}).to_list(length=100)
     pro_ids = [u["id"] for u in pro_users]
-    pipeline = [{"$match": {"provider_id": {"$in": pro_ids}}}, {"$sort": {"rating": -1, "created_at": -1}}, {"$limit": limit}]
+    pipeline = [
+        {"$match": {"provider_id": {"$in": pro_ids}}},
+        {"$sort": {"rating": -1, "created_at": -1}},
+        {"$limit": limit},
+        {"$project": {"_id": 0}}
+    ]
     items = await db.products.aggregate(pipeline).to_list(length=limit)
     return {"items": items}

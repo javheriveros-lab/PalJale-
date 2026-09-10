@@ -15,12 +15,32 @@ class UserContext(BaseModel):
 async def get_current_user(authorization: str = Header(None)) -> UserContext:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing token")
-    token = authorization.replace("Bearer ", "")
+    token = authorization.replace("Bearer ", "").strip()
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
-        return UserContext(id=payload.get("sub"), email=payload.get("email"), role=payload.get("role"))
+        user_id = payload.get("sub")
+        email = payload.get("email")
+        role = payload.get("role", "cliente")
+        if not user_id or not email:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+        return UserContext(id=user_id, email=email, role=role)
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+async def get_optional_current_user(authorization: str = Header(None)) -> UserContext | None:
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    token = authorization.replace("Bearer ", "").strip()
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        email = payload.get("email")
+        role = payload.get("role", "cliente")
+        if not user_id or not email:
+            return None
+        return UserContext(id=user_id, email=email, role=role)
+    except JWTError:
+        return None
 
 async def require_admin(user: UserContext = Depends(get_current_user)) -> UserContext:
     if user.role != "admin":

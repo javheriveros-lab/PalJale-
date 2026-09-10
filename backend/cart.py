@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
+from typing import Optional
 from datetime import datetime
 from database import get_db
 from auth_utils import get_current_user, UserContext
 from bson import ObjectId
+from notifications import on_new_order
 
 router = APIRouter(prefix="/api/cart", tags=["Cart"])
 
@@ -91,13 +93,14 @@ async def remove_cart_item(item_id: str, user: UserContext = Depends(get_current
     return {"success": True}
 
 @router.post("/checkout")
-async def checkout_cart(payload: dict = None, user: UserContext = Depends(get_current_user)):
+async def checkout_cart(payload: Optional[dict] = Body(None), user: UserContext = Depends(get_current_user)):
     db = await get_db()
     cart = await db.carts.find_one({"user_id": user.id})
     if not cart or not cart.get("items"):
         raise HTTPException(status_code=400, detail="Carrito vacío")
     insurance_enabled = payload.get("insurance_enabled", False) if payload else False
     created_orders = []
+    now_iso = datetime.utcnow().isoformat()
     for item in cart["items"]:
         order_id = f"ord_{ObjectId()}"
         subtotal = item["subtotal_mxn"]
@@ -109,8 +112,38 @@ async def checkout_cart(payload: dict = None, user: UserContext = Depends(get_cu
             insurance_percent = 3.0
             insurance_fee = round(subtotal * insurance_percent / 100, 2)
         total = subtotal + deposit + fee + insurance_fee
-        order = {"id": order_id, "user_id": user.id, "provider_id": item["provider_id"], "product_id": item["product_id"], "product_title": item["product_title"], "transaction_type": item["transaction_type"], "start_date": item.get("start_date"), "end_date": item.get("end_date"), "booked_dates": [], "dates_committed": False, "hold_expires_at": None, "delivery_address": item.get("delivery_address", ""), "delivery_method": item.get("delivery_method", "pickup"), "delivery_lat": item.get("delivery_lat"), "delivery_lng": item.get("delivery_lng"), "subtotal_mxn": item["subtotal_mxn"], "deposit_mxn": item["deposit_mxn"], "platform_fee_mxn": fee, "insurance_enabled": insurance_enabled, "insurance_fee_mxn": insurance_fee, "insurance_percent": insurance_percent, "total_mxn": round(total, 2), "status": "creada", "payment_status": "unpaid", "deposit_status": "held", "extended_hold": False, "created_at": datetime.utcnow().isoformat(), "updated_at": datetime.utcnow().isoformat()}
+        order = {
+            "id": order_id,
+            "user_id": user.id,
+            "provider_id": item["provider_id"],
+            "product_id": item["product_id"],
+            "product_title": item["product_title"],
+            "transaction_type": item["transaction_type"],
+            "start_date": item.get("start_date"),
+            "end_date": item.get("end_date"),
+            "booked_dates": [],
+            "dates_committed": False,
+            "hold_expires_at": None,
+            "delivery_address": item.get("delivery_address", ""),
+            "delivery_method": item.get("delivery_method", "pickup"),
+            "delivery_lat": item.get("delivery_lat"),
+            "delivery_lng": item.get("delivery_lng"),
+            "subtotal_mxn": item["subtotal_mxn"],
+            "deposit_mxn": item["deposit_mxn"],
+            "platform_fee_mxn": fee,
+            "insurance_enabled": insurance_enabled,
+            "insurance_fee_mxn": insurance_fee,
+            "insurance_percent": insurance_percent,
+            "total_mxn": round(total, 2),
+            "status": "creada",
+            "payment_status": "unpaid",
+            "deposit_status": "held",
+            "extended_hold": False,
+            "created_at": now_iso,
+            "updated_at": now_iso
+        }
         await db.orders.insert_one(order)
+        await on_new_order(db, item["provider_id"], order_id)
         created_orders.append({"order_id": order_id, "product_title": item["product_title"], "total_mxn": order["total_mxn"]})
     await db.carts.delete_one({"user_id": user.id})
     return {"success": True, "orders": created_orders}

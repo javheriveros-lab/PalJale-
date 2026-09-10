@@ -1,3 +1,4 @@
+import re
 from fastapi import APIRouter, Depends, HTTPException, Query
 from datetime import datetime
 from typing import Optional, List
@@ -5,7 +6,7 @@ from pydantic import BaseModel, Field, validator
 from bson import ObjectId
 
 from database import get_db
-from auth_utils import get_current_user, UserContext
+from auth_utils import get_current_user, get_optional_current_user, UserContext
 
 router = APIRouter(prefix="/api", tags=["Products"])
 
@@ -75,8 +76,8 @@ async def list_products(
     category: Optional[str] = None,
     transaction_type: Optional[str] = None,
     limit: int = Query(50, le=100),
-    skip: int = 0,
-    user: UserContext = Depends(get_current_user),
+    skip: int = Query(0, ge=0),
+    user: Optional[UserContext] = Depends(get_optional_current_user),
 ):
     db = await get_db()
     query = {}
@@ -85,9 +86,10 @@ async def list_products(
     if transaction_type:
         query["transaction_type"] = transaction_type
     if q:
+        safe_q = re.escape(q.strip())
         query["$or"] = [
-            {"title": {"$regex": q, "$options": "i"}},
-            {"description": {"$regex": q, "$options": "i"}},
+            {"title": {"$regex": safe_q, "$options": "i"}},
+            {"description": {"$regex": safe_q, "$options": "i"}},
         ]
 
     total = await db.products.count_documents(query)
@@ -97,7 +99,7 @@ async def list_products(
 
 
 @router.get("/products/{product_id}")
-async def get_product(product_id: str, user: UserContext = Depends(get_current_user)):
+async def get_product(product_id: str, user: Optional[UserContext] = Depends(get_optional_current_user)):
     db = await get_db()
     product = await db.products.find_one({"id": product_id}, {"_id": 0})
     if not product:

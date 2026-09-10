@@ -22,11 +22,47 @@ async def get_provider_metrics(user: UserContext = Depends(require_provider)):
     rating = user_doc.get("rating", 0.0) if user_doc else 0.0
     reviews_count = user_doc.get("reviews_count", 0) if user_doc else 0
     start_of_month = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    orders_this_month = await db.orders.count_documents({"provider_id": provider_id, "created_at": {"$gte": start_of_month.isoformat()}})
-    pipeline_month = [{"$match": {"provider_id": provider_id, "payment_status": "paid", "status": {"$in": ["entregada", "devuelta"]}, "paid_at": {"$gte": start_of_month.isoformat()}}}, {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$provider_payout_amount_mxn", {"$subtract": ["$subtotal_mxn", "$platform_fee_mxn"]}]}}}}]
+    orders_this_month = await db.orders.count_documents({
+        "provider_id": provider_id,
+        "created_at": {"$gte": start_of_month.isoformat()}
+    })
+    pipeline_month = [
+        {
+            "$match": {
+                "provider_id": provider_id,
+                "payment_status": "paid",
+                "status": {"$in": ["entregada", "devuelta"]},
+                "$or": [
+                    {"paid_at": {"$gte": start_of_month.isoformat()}},
+                    {"paid_at": {"$gte": start_of_month}},
+                ]
+            }
+        },
+        {
+            "$group": {
+                "_id": None,
+                "total": {
+                    "$sum": {
+                        "$ifNull": [
+                            "$provider_payout_amount_mxn",
+                            {"$subtract": ["$subtotal_mxn", "$platform_fee_mxn"]}
+                        ]
+                    }
+                }
+            }
+        }
+    ]
     month_res = await db.orders.aggregate(pipeline_month).to_list(length=1)
     income_this_month = month_res[0]["total"] if month_res else 0.0
-    return {"total_net_income": round(total_net, 2), "income_this_month": round(income_this_month, 2), "orders_this_month": orders_this_month, "status_breakdown": status_breakdown, "top_products": top_products, "rating": round(rating, 2), "reviews_count": reviews_count}
+    return {
+        "total_net_income": round(total_net, 2),
+        "income_this_month": round(income_this_month, 2),
+        "orders_this_month": orders_this_month,
+        "status_breakdown": status_breakdown,
+        "top_products": top_products,
+        "rating": round(rating, 2),
+        "reviews_count": reviews_count
+    }
 
 @router.get("/history")
 async def get_income_history(months: int = 6, user: UserContext = Depends(require_provider)):
@@ -37,7 +73,32 @@ async def get_income_history(months: int = 6, user: UserContext = Depends(requir
     for i in range(months):
         month_start = (now.replace(day=1) - timedelta(days=i*30)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         month_end = (month_start + timedelta(days=32)).replace(day=1)
-        pipeline = [{"$match": {"provider_id": provider_id, "payment_status": "paid", "status": {"$in": ["entregada", "devuelta"]}, "paid_at": {"$gte": month_start.isoformat(), "$lt": month_end.isoformat()}}}, {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$provider_payout_amount_mxn", {"$subtract": ["$subtotal_mxn", "$platform_fee_mxn"]}]}}}}}]
+        pipeline = [
+            {
+                "$match": {
+                    "provider_id": provider_id,
+                    "payment_status": "paid",
+                    "status": {"$in": ["entregada", "devuelta"]},
+                    "$or": [
+                        {"paid_at": {"$gte": month_start.isoformat(), "$lt": month_end.isoformat()}},
+                        {"paid_at": {"$gte": month_start, "$lt": month_end}},
+                    ]
+                }
+            },
+            {
+                "$group": {
+                    "_id": None,
+                    "total": {
+                        "$sum": {
+                            "$ifNull": [
+                                "$provider_payout_amount_mxn",
+                                {"$subtract": ["$subtotal_mxn", "$platform_fee_mxn"]}
+                            ]
+                        }
+                    }
+                }
+            }
+        ]
         res = await db.orders.aggregate(pipeline).to_list(length=1)
         total = res[0]["total"] if res else 0.0
         results.append({"month": month_start.strftime("%Y-%m"), "label": month_start.strftime("%b %Y"), "income": round(total, 2)})

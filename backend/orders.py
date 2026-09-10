@@ -212,6 +212,8 @@ async def update_order_status(
 async def start_tracking(order_id: str, user: UserContext = Depends(get_current_user)):
     db = await get_db()
     order = await _require_order_access(db, order_id, user)
+    if order["provider_id"] != user.id and user.role != "admin":
+        raise HTTPException(status_code=403, detail="Solo el proveedor o admin pueden iniciar el rastreo")
     await db.orders.update_one(
         {"id": order_id},
         {"$set": {"tracking_active": True, "updated_at": datetime.utcnow().isoformat()}},
@@ -227,6 +229,8 @@ async def update_location(
 ):
     db = await get_db()
     order = await _require_order_access(db, order_id, user)
+    if order["provider_id"] != user.id and user.role != "admin":
+        raise HTTPException(status_code=403, detail="Solo el proveedor o admin pueden actualizar la ubicación")
     point = {
         "lat": payload.lat,
         "lng": payload.lng,

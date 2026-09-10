@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
 from datetime import datetime
 from database import get_db
 from auth_utils import get_current_user, UserContext
@@ -33,24 +34,41 @@ async def create_review(payload: dict, user: UserContext = Depends(get_current_u
     existing = await db.reviews.find_one({"order_id": order_id, "type": review_type})
     if existing:
         raise HTTPException(status_code=409, detail="Ya existe una reseña para esta orden")
-    review = {"id": f"rev_{ObjectId()}", "order_id": order_id, "reviewer_id": user.id, "reviewee_id": reviewee_id, "product_id": order["product_id"], "rating": rating, "comment": comment, "type": review_type, "created_at": datetime.utcnow().isoformat()}
+    now_iso = datetime.utcnow().isoformat()
+    review = {
+        "id": f"rev_{ObjectId()}",
+        "order_id": order_id,
+        "reviewer_id": user.id,
+        "reviewee_id": reviewee_id,
+        "product_id": order["product_id"],
+        "rating": rating,
+        "comment": comment,
+        "type": review_type,
+        "created_at": now_iso,
+    }
     await db.reviews.insert_one(review)
     pipeline = [{"$match": {"reviewee_id": reviewee_id}}, {"$group": {"_id": None, "avg_rating": {"$avg": "$rating"}, "count": {"$sum": 1}}}]
     result = await db.reviews.aggregate(pipeline).to_list(length=1)
     if result:
         avg = round(result[0]["avg_rating"], 2)
         count = result[0]["count"]
-        await db.users.update_one({"id": reviewee_id}, {"$set": {"rating": avg, "reviews_count": count, "updated_at": datetime.utcnow()}})
+        await db.users.update_one({"id": reviewee_id}, {"$set": {"rating": avg, "reviews_count": count, "updated_at": now_iso}})
     product_pipeline = [{"$match": {"product_id": order["product_id"]}}, {"$group": {"_id": None, "avg_rating": {"$avg": "$rating"}, "count": {"$sum": 1}}}]
     prod_result = await db.reviews.aggregate(product_pipeline).to_list(length=1)
     if prod_result:
         avg = round(prod_result[0]["avg_rating"], 2)
         count = prod_result[0]["count"]
         await db.products.update_one({"id": order["product_id"]}, {"$set": {"rating": avg, "reviews_count": count}})
+    review.pop("_id", None)
     return review
 
 @router.get("/")
-async def list_reviews(product_id: str = None, user_id: str = None, limit: int = 20, skip: int = 0):
+async def list_reviews(
+    product_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    limit: int = Query(20, le=100),
+    skip: int = Query(0, ge=0)
+):
     db = await get_db()
     query = {}
     if product_id:
@@ -61,3 +79,4 @@ async def list_reviews(product_id: str = None, user_id: str = None, limit: int =
     cursor = db.reviews.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit)
     items = await cursor.to_list(length=limit)
     return {"items": items, "total": total, "limit": limit, "skip": skip}
+

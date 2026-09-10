@@ -20,5 +20,5 @@ COPY . .
 # Puerto por defecto
 EXPOSE 8000
 
-# Comando de inicio
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
+# Comando de inicio compatible con variable de entorno PORT en plataformas cloud
+CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8000}"]

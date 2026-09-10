@@ -34,7 +34,7 @@ async def notify_user_push(user_id: str, title: str, body: str, data: dict = Non
             payloads.append({"to": token, "sound": "default", "title": title, "body": body, "data": data or {}, "priority": "high"})
     if not payloads:
         return
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=10.0) as client:
         try:
             await client.post(EXPO_PUSH_URL, json=payloads, headers={"Accept": "application/json", "Accept-Encoding": "gzip, deflate", "Content-Type": "application/json"})
         except Exception:
@@ -44,8 +44,9 @@ async def create_notification(db, user_id: str, type_: str, title: str, body: st
     key = await _dedup_key(user_id, type_, order_id, inspection_id)
     if not await _should_emit(db, key):
         return None
-    notif = {"id": f"notif_{ObjectId()}", "user_id": user_id, "type": type_, "title": title, "body": body, "order_id": order_id, "inspection_id": inspection_id, "priority": priority, "read": False, "read_at": None, "created_at": datetime.utcnow()}
+    notif = {"id": f"notif_{ObjectId()}", "user_id": user_id, "type": type_, "title": title, "body": body, "order_id": order_id, "inspection_id": inspection_id, "priority": priority, "read": False, "read_at": None, "created_at": datetime.utcnow().isoformat()}
     await db.notifications.insert_one(notif)
+    notif.pop("_id", None)
     await notify_user_push(user_id, title, body, {"type": type_, "order_id": order_id, "inspection_id": inspection_id, "notification_id": notif["id"]})
     return notif
 

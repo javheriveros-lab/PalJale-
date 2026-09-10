@@ -1,5 +1,6 @@
 import os
 import base64
+import tempfile
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from io import BytesIO
@@ -107,20 +108,25 @@ async def generate_contract_pdf(order_id: str, user: UserContext = Depends(get_c
     pdf.add_page()
     pdf.set_font("Arial", "B", 12)
     pdf.cell(0, 8, "5. EVIDENCIA DE ENTREGA Y FIRMAS", 0, 1)
+
     dc = order.get("delivery_checklist", {})
+    temp_dir = tempfile.gettempdir()
     if dc.get("fotos_b64"):
         pdf.set_font("Arial", "B", 10)
         pdf.cell(0, 6, "Fotos de entrega:", 0, 1)
         for idx, photo_b64 in enumerate(dc["fotos_b64"][:4]):
             try:
                 img_data = base64.b64decode(photo_b64.split(",")[-1])
-                tmp_path = f"/tmp/contract_{order_id}_del_{idx}.jpg"
+                tmp_path = os.path.join(temp_dir, f"contract_{order_id}_del_{idx}.jpg")
                 with open(tmp_path, "wb") as f:
                     f.write(img_data)
                 pdf.image(tmp_path, x=10 + (idx % 2) * 95, y=pdf.get_y(), w=85)
                 if idx % 2 == 1:
                     pdf.ln(50)
-                os.remove(tmp_path)
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
             except Exception:
                 pass
         if len(dc["fotos_b64"]) % 2 == 1:
@@ -130,12 +136,15 @@ async def generate_contract_pdf(order_id: str, user: UserContext = Depends(get_c
     if dc.get("signature_b64"):
         try:
             sig_data = base64.b64decode(dc["signature_b64"].split(",")[-1])
-            sig_path = f"/tmp/contract_{order_id}_sig_del.jpg"
+            sig_path = os.path.join(temp_dir, f"contract_{order_id}_sig_del.jpg")
             with open(sig_path, "wb") as f:
                 f.write(sig_data)
             pdf.image(sig_path, x=10, y=pdf.get_y(), w=80)
             pdf.ln(30)
-            os.remove(sig_path)
+            try:
+                os.remove(sig_path)
+            except OSError:
+                pass
         except Exception:
             pdf.cell(0, 6, "[Firma no disponible]", 0, 1)
     else:
@@ -149,13 +158,16 @@ async def generate_contract_pdf(order_id: str, user: UserContext = Depends(get_c
         for idx, photo_b64 in enumerate(rc["fotos_b64"][:4]):
             try:
                 img_data = base64.b64decode(photo_b64.split(",")[-1])
-                tmp_path = f"/tmp/contract_{order_id}_ret_{idx}.jpg"
+                tmp_path = os.path.join(temp_dir, f"contract_{order_id}_ret_{idx}.jpg")
                 with open(tmp_path, "wb") as f:
                     f.write(img_data)
                 pdf.image(tmp_path, x=10 + (idx % 2) * 95, y=pdf.get_y(), w=85)
                 if idx % 2 == 1:
                     pdf.ln(50)
-                os.remove(tmp_path)
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
             except Exception:
                 pass
     pdf.set_font("Arial", "B", 10)
@@ -163,12 +175,15 @@ async def generate_contract_pdf(order_id: str, user: UserContext = Depends(get_c
     if rc.get("signature_b64"):
         try:
             sig_data = base64.b64decode(rc["signature_b64"].split(",")[-1])
-            sig_path = f"/tmp/contract_{order_id}_sig_ret.jpg"
+            sig_path = os.path.join(temp_dir, f"contract_{order_id}_sig_ret.jpg")
             with open(sig_path, "wb") as f:
                 f.write(sig_data)
             pdf.image(sig_path, x=10, y=pdf.get_y(), w=80)
             pdf.ln(30)
-            os.remove(sig_path)
+            try:
+                os.remove(sig_path)
+            except OSError:
+                pass
         except Exception:
             pdf.cell(0, 6, "[Firma no disponible]", 0, 1)
     else:

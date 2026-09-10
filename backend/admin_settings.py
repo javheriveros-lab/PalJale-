@@ -13,5 +13,7 @@ async def get_settings(admin: UserContext = Depends(require_admin)):
 @router.patch("/")
 async def update_settings(payload: dict, admin: UserContext = Depends(require_admin)):
     db = await get_db()
-    await db.settings.update_one({"key": "global"}, {"$set": payload, "$setOnInsert": {"key": "global"}}, upsert=True)
+    clean = {k: v for k, v in payload.items() if k not in ("_id", "key")}
+    if clean:
+        await db.settings.update_one({"key": "global"}, {"$set": clean, "$setOnInsert": {"key": "global"}}, upsert=True)
     return {"success": True}

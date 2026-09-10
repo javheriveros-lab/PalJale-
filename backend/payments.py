@@ -31,7 +31,7 @@ async def ensure_stripe_customer(db, user_id: str, email: str) -> str:
     if user and user.get("stripe_customer_id"):
         return user["stripe_customer_id"]
     customer = stripe.Customer.create(email=email, metadata={"paljale_user_id": user_id})
-    await db.users.update_one({"id": user_id}, {"$set": {"stripe_customer_id": customer.id, "updated_at": datetime.utcnow()}})
+    await db.users.update_one({"id": user_id}, {"$set": {"stripe_customer_id": customer.id, "updated_at": datetime.utcnow().isoformat()}})
     return customer.id
 
 @router.post("/setup-intent", response_model=SetupIntentResponse)
@@ -95,7 +95,8 @@ async def one_tap_payment(payload: OneTapPaymentRequest, user: UserContext = Dep
     fee_cents = int(order["platform_fee_mxn"] * 100)
     try:
         intent = stripe.PaymentIntent.create(amount=total_cents, currency="mxn", customer=order.get("stripe_customer_id"), payment_method=payload.payment_method_id, off_session=True, confirm=True, metadata={"order_id": payload.order_id, "type": "one_tap"}, application_fee_amount=fee_cents)
-        await db.orders.update_one({"id": payload.order_id}, {"$set": {"payment_status": "paid", "paid_at": datetime.utcnow(), "stripe_payment_intent_id": intent.id}})
+        now_iso = datetime.utcnow().isoformat()
+        await db.orders.update_one({"id": payload.order_id}, {"$set": {"payment_status": "paid", "paid_at": now_iso, "updated_at": now_iso, "stripe_payment_intent_id": intent.id}})
         return {"success": True, "payment_intent_id": intent.id, "status": intent.status}
     except stripe.error.CardError as e:
         raise HTTPException(status_code=400, detail=e.user_message or "Tarjeta rechazada")
@@ -106,13 +107,23 @@ async def one_tap_payment(payload: OneTapPaymentRequest, user: UserContext = Dep
 async def stripe_webhook(request: Request):
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
+    webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    if not webhook_secret:
+        raise HTTPException(status_code=500, detail="STRIPE_WEBHOOK_SECRET no configurado")
     try:
-        event = stripe.Webhook.construct_event(payload, sig_header, os.getenv("STRIPE_WEBHOOK_SECRET", ""))
-    except Exception:
-        event = {"type": "checkout.session.completed", "data": {"object": {"metadata": {"order_id": "mock"}}}}
+        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    except stripe.error.SignatureVerificationError:
+        raise HTTPException(status_code=400, detail="Invalid signature")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Webhook error: {str(e)}")
+
     event_type = event.get("type")
     data_obj = event.get("data", {}).get("object", {})
     db = await get_db()
+    now_iso = datetime.utcnow().isoformat()
+
     if event_type == "checkout.session.completed":
         session = data_obj
         meta = session.get("metadata", {})
@@ -120,29 +131,30 @@ async def stripe_webhook(request: Request):
             user_id = meta.get("paljale_user_id")
             sub_id = session.get("subscription")
             if user_id and sub_id:
-                await db.users.update_one({"id": user_id}, {"$set": {"is_pro": True, "pro_subscription_id": sub_id, "pro_status": "active", "updated_at": datetime.utcnow().isoformat()}})
+                await db.users.update_one({"id": user_id}, {"$set": {"is_pro": True, "pro_subscription_id": sub_id, "pro_status": "active", "updated_at": now_iso}})
             return {"status": "success"}
         order_id = meta.get("order_id")
         if order_id:
-            await db.orders.update_one({"id": order_id}, {"$set": {"payment_status": "paid", "paid_at": datetime.utcnow(), "stripe_payment_intent_id": session.get("payment_intent", f"pi_mock_{ObjectId()}")}})
+            await db.orders.update_one({"id": order_id}, {"$set": {"payment_status": "paid", "paid_at": now_iso, "updated_at": now_iso, "stripe_payment_intent_id": session.get("payment_intent", f"pi_{ObjectId()}")}})
     elif event_type == "invoice.paid":
         sub_id = data_obj.get("subscription")
         if sub_id:
-            await db.users.update_one({"pro_subscription_id": sub_id}, {"$set": {"is_pro": True, "pro_status": "active", "updated_at": datetime.utcnow().isoformat()}})
+            await db.users.update_one({"pro_subscription_id": sub_id}, {"$set": {"is_pro": True, "pro_status": "active", "updated_at": now_iso}})
     elif event_type == "customer.subscription.deleted":
         sub_id = data_obj.get("id")
         if sub_id:
-            await db.users.update_one({"pro_subscription_id": sub_id}, {"$set": {"is_pro": False, "pro_status": "canceled", "updated_at": datetime.utcnow().isoformat()}})
+            await db.users.update_one({"pro_subscription_id": sub_id}, {"$set": {"is_pro": False, "pro_status": "canceled", "updated_at": now_iso}})
     return {"status": "success"}
 
 @router.post("/confirm/{order_id}")
-async def confirm_payment_manual(order_id: str, user: UserContext = Depends(get_current_user)):
+async def confirm_payment_manual(order_id: str, admin: UserContext = Depends(require_admin)):
     db = await get_db()
     order = await db.orders.find_one({"id": order_id})
     if not order:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
-    await db.orders.update_one({"id": order_id}, {"$set": {"payment_status": "paid", "paid_at": datetime.utcnow(), "stripe_payment_intent_id": f"pi_manual_{ObjectId()}"}})
-    return {"success": True, "message": "Pago confirmado manualmente"}
+    now_iso = datetime.utcnow().isoformat()
+    await db.orders.update_one({"id": order_id}, {"$set": {"payment_status": "paid", "paid_at": now_iso, "updated_at": now_iso, "stripe_payment_intent_id": f"pi_manual_{ObjectId()}"}})
+    return {"success": True, "message": "Pago confirmado manualmente por administrador"}
 
 @router.post("/deposit/{order_id}/release")
 async def release_deposit(order_id: str, user: UserContext = Depends(get_current_user)):
@@ -150,9 +162,12 @@ async def release_deposit(order_id: str, user: UserContext = Depends(get_current
     order = await db.orders.find_one({"id": order_id})
     if not order:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
+    if order["provider_id"] != user.id and user.role != "admin":
+        raise HTTPException(status_code=403, detail="Solo el proveedor o admin pueden liberar el depósito")
     if order.get("deposit_status") != "held":
         raise HTTPException(status_code=400, detail="Depósito no retenido")
-    await db.orders.update_one({"id": order_id}, {"$set": {"deposit_status": "released"}})
+    now_iso = datetime.utcnow().isoformat()
+    await db.orders.update_one({"id": order_id}, {"$set": {"deposit_status": "released", "updated_at": now_iso}})
     return {"success": True, "message": "Depósito liberado"}
 
 @router.post("/deposit/{order_id}/capture")
@@ -161,9 +176,12 @@ async def capture_deposit(order_id: str, user: UserContext = Depends(get_current
     order = await db.orders.find_one({"id": order_id})
     if not order:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
+    if order["provider_id"] != user.id and user.role != "admin":
+        raise HTTPException(status_code=403, detail="Solo el proveedor o admin pueden capturar el depósito")
     if order.get("deposit_status") != "held":
         raise HTTPException(status_code=400, detail="Depósito no retenido")
-    await db.orders.update_one({"id": order_id}, {"$set": {"deposit_status": "captured"}})
+    now_iso = datetime.utcnow().isoformat()
+    await db.orders.update_one({"id": order_id}, {"$set": {"deposit_status": "captured", "updated_at": now_iso}})
     return {"success": True, "message": "Depósito capturado por daño"}
 
 @router.get("/success", response_class=HTMLResponse)
@@ -190,6 +208,7 @@ async def auto_process_commission_on_return(db, order_id: str):
         return False
     subtotal = order.get("subtotal_mxn", 0)
     commission_amount = order.get("platform_fee_mxn", subtotal * PLATFORM_FEE_PERCENT)
+    now_iso = datetime.utcnow().isoformat()
     payout_record = {
         "id": f"po_{ObjectId()}",
         "order_id": order_id,
@@ -199,10 +218,10 @@ async def auto_process_commission_on_return(db, order_id: str):
         "status": "pending",
         "stripe_transfer_id": None,
         "processed_at": None,
-        "created_at": datetime.utcnow()
+        "created_at": now_iso
     }
     await db.commission_payouts.insert_one(payout_record)
-    await db.commission_payouts.update_one({"id": payout_record["id"]}, {"$set": {"status": "completed", "processed_at": datetime.utcnow(), "stripe_transfer_id": f"tr_mock_{ObjectId()}"}})
+    await db.commission_payouts.update_one({"id": payout_record["id"]}, {"$set": {"status": "completed", "processed_at": now_iso, "stripe_transfer_id": f"tr_mock_{ObjectId()}"}})
     return True
 
 async def transfer_to_provider(db, order_id: str):
