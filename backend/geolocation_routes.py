@@ -16,30 +16,7 @@ async def nearby_products(lat: float = Query(...), lng: float = Query(...), max_
     if transaction_type: match_stage["transaction_type"] = transaction_type
     if q: match_stage["$or"] = [{"title": {"$regex": q, "$options": "i"}}, {"description": {"$regex": q, "$options": "i"}}]
     pipeline.append({"$match": match_stage})
-    pipeline.append({
-        "$addFields": {
-            "distance_km": {
-                "$let": {
-                    "vars": {
-                        "dlat": {"$multiply": [{"$subtract": ["$lat", lat]}, 0.017453292519943295]},
-                        "dlng": {"$multiply": [{"$subtract": ["$lng", lng]}, 0.017453292519943295]},
-                        "a": {
-                            "$add": [
-                                {"$multiply": [{"$sin": {"$divide": ["$$dlat", 2]}}, {"$sin": {"$divide": ["$$dlat", 2]}}]},
-                                {"$multiply": [{"$cos": {"$multiply": ["$lat", 0.017453292519943295]}}, {"$cos": {"$multiply": [lat, 0.017453292519943295]}}, {"$sin": {"$divide": ["$$dlng", 2]}}, {"$sin": {"$divide": ["$$dlng", 2]}}]}
-                            ]
-                        }
-                    },
-                    "in": {
-                        "$multiply": [
-                            6371,
-                            {"$multiply": [2, {"$atan2": [{"$sqrt": "$$a"}, {"$sqrt": {"$subtract": [1, "$$a"]}}]}]}
-                        ]
-                    }
-                }
-            }
-        }
-    })
+    pipeline.append({"$addFields": {"distance_km": {"$let": {"vars": {"dlat": {"$multiply": [{"$subtract": ["$lat", lat]}, 0.017453292519943295]}, "dlng": {"$multiply": [{"$subtract": ["$lng", lng]}, 0.017453292519943295]}, "a": {"$add": [{"$multiply": [{"$sin": {"$divide": ["$$dlat", 2]}}, {"$sin": {"$divide": ["$$dlat", 2]}}]}, {"$multiply": [{"$cos": {"$multiply": ["$lat", 0.017453292519943295]}}, {"$cos": {"$multiply": [lat, 0.017453292519943295]}}, {"$sin": {"$divide": ["$$dlng", 2]}}, {"$sin": {"$divide": ["$$dlng", 2]}}]}]}}, "in": {"$multiply": [6371, {"$multiply": [2, {"$atan2": [{"$sqrt": "$$a"}, {"$sqrt": {"$subtract": [1, "$$a"]}}]}]}]}}}}}})
     pipeline.append({"$match": {"distance_km": {"$lte": max_km}}})
     pipeline.append({"$sort": {"distance_km": 1}})
     pipeline.append({"$limit": limit})

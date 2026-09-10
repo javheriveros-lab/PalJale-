@@ -37,10 +37,7 @@ async def get_income_history(months: int = 6, user: UserContext = Depends(requir
     for i in range(months):
         month_start = (now.replace(day=1) - timedelta(days=i*30)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         month_end = (month_start + timedelta(days=32)).replace(day=1)
-        pipeline = [
-            {"$match": {"provider_id": provider_id, "payment_status": "paid", "status": {"$in": ["entregada", "devuelta"]}, "paid_at": {"$gte": month_start.isoformat(), "$lt": month_end.isoformat()}}},
-            {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$provider_payout_amount_mxn", {"$subtract": ["$subtotal_mxn", "$platform_fee_mxn"]}]}}}}
-        ]
+        pipeline = [{"$match": {"provider_id": provider_id, "payment_status": "paid", "status": {"$in": ["entregada", "devuelta"]}, "paid_at": {"$gte": month_start.isoformat(), "$lt": month_end.isoformat()}}}, {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$provider_payout_amount_mxn", {"$subtract": ["$subtotal_mxn", "$platform_fee_mxn"]}]}}}}}]
         res = await db.orders.aggregate(pipeline).to_list(length=1)
         total = res[0]["total"] if res else 0.0
         results.append({"month": month_start.strftime("%Y-%m"), "label": month_start.strftime("%b %Y"), "income": round(total, 2)})

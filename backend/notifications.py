@@ -70,9 +70,6 @@ async def on_shipment_arrived(db, user_id: str, order_id: str):
 async def on_order_delivered(db, user_id: str, order_id: str):
     return await create_notification(db, user_id, "order_delivered", "Entregado", "El equipo ha sido entregado.", order_id=order_id)
 
-async def on_order_returned(db, user_id: str, order_id: str):
-    return await create_notification(db, user_id, "order_returned", "Devuelto", "El equipo ha sido devuelto.", order_id=order_id)
-
 async def on_damage_reported(db, user_id: str, order_id: str, fanout_admins: bool = False):
     notif = await create_notification(db, user_id, "damage_reported", "Daño reportado", "Se reportó un daño en la devolución.", order_id=order_id, priority="high")
     if fanout_admins:
