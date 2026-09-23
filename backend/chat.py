@@ -1,4 +1,5 @@
 import json
+import logging
 from collections import defaultdict
 from datetime import datetime
 from typing import Optional, Set
@@ -7,6 +8,8 @@ from database import get_db
 from auth_utils import get_current_user, UserContext, JWT_SECRET, ALGORITHM
 from jose import jwt, JWTError
 from bson import ObjectId
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
 
@@ -40,6 +43,7 @@ class ChatConnectionManager:
                 try:
                     await ws.send_text(serialized)
                 except Exception:
+                    logger.debug("Socket muerto en order_id %s, se desconecta", order_id, exc_info=True)
                     dead_sockets.add(ws)
             for ws in dead_sockets:
                 self.active_rooms[order_id].discard(ws)
@@ -194,5 +198,6 @@ async def chat_websocket(websocket: WebSocket, order_id: str, token: str = Query
     except WebSocketDisconnect:
         manager.disconnect(order_id, websocket)
     except Exception:
+        logger.exception("Error no manejado en websocket de chat para order_id %s", order_id)
         manager.disconnect(order_id, websocket)
 

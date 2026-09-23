@@ -1,7 +1,17 @@
 import os
+import logging
 from motor.motor_asyncio import AsyncIOMotorClient
 
-MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
+logger = logging.getLogger(__name__)
+
+MONGO_URL = os.getenv("MONGO_URL") or os.getenv("MONGODB_URI")
+if not MONGO_URL:
+    raise RuntimeError(
+        "MONGO_URL (o MONGODB_URI) no está configurada. "
+        "Defínela en las variables de entorno de Railway apuntando a tu cluster de MongoDB Atlas "
+        "(ej. mongodb+srv://usuario:password@cluster.mongodb.net/?retryWrites=true&w=majority)."
+    )
+
 DB_NAME = os.getenv("DB_NAME", "paljale")
 
 client = AsyncIOMotorClient(MONGO_URL)
@@ -10,23 +20,32 @@ db = client[DB_NAME]
 async def get_db():
     return db
 
+INDEXES = [
+    ("users", "email", {"unique": True}),
+    ("users", "is_pro", {}),
+    ("products", "provider_id", {}),
+    ("orders", "user_id", {}),
+    ("orders", "provider_id", {}),
+    ("notifications", [("user_id", 1), ("created_at", -1)], {}),
+    ("notifications", [("user_id", 1), ("read", 1)], {}),
+    ("settings", "key", {"unique": True}),
+    ("bank_configs", "id", {"unique": True}),
+    ("commission_payouts", "id", {"unique": True}),
+    ("chat_messages", [("order_id", 1), ("created_at", -1)], {}),
+    ("push_tokens", [("user_id", 1), ("token", 1)], {"unique": True}),
+    ("reviews", [("order_id", 1), ("type", 1)], {"unique": True}),
+    ("reviews", "product_id", {}),
+    ("reviews", "reviewee_id", {}),
+    ("carts", "user_id", {"unique": True}),
+    ("products", [("category", 1), ("transaction_type", 1)], {}),
+    ("products", [("lat", 1), ("lng", 1)], {}),
+    ("chat_messages", [("order_id", 1), ("receiver_id", 1), ("read_at", 1)], {}),
+]
+
 async def init_indexes():
-    await db.users.create_index("email", unique=True)
-    await db.users.create_index("is_pro")
-    await db.products.create_index("provider_id")
-    await db.orders.create_index("user_id")
-    await db.orders.create_index("provider_id")
-    await db.notifications.create_index([("user_id", 1), ("created_at", -1)])
-    await db.notifications.create_index([("user_id", 1), ("read", 1)])
-    await db.settings.create_index("key", unique=True)
-    await db.bank_configs.create_index("id", unique=True)
-    await db.commission_payouts.create_index("id", unique=True)
-    await db.chat_messages.create_index([("order_id", 1), ("created_at", -1)])
-    await db.push_tokens.create_index([("user_id", 1), ("token", 1)], unique=True)
-    await db.reviews.create_index([("order_id", 1), ("type", 1)], unique=True)
-    await db.reviews.create_index("product_id")
-    await db.reviews.create_index("reviewee_id")
-    await db.carts.create_index("user_id", unique=True)
-    await db.products.create_index([("category", 1), ("transaction_type", 1)])
-    await db.products.create_index([("lat", 1), ("lng", 1)])
-    await db.chat_messages.create_index([("order_id", 1), ("receiver_id", 1), ("read_at", 1)])
+    for collection, spec, kwargs in INDEXES:
+        try:
+            await db[collection].create_index(spec, **kwargs)
+        except Exception:
+            logger.exception("Fallo creando índice %s en la colección '%s'", spec, collection)
+            raise

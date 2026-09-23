@@ -11,7 +11,7 @@ async def get_bank_config(admin: UserContext = Depends(require_super_admin)):
     db = await get_db()
     config = await db.bank_configs.find_one({"is_active": True}, {"_id": 0})
     if not config:
-        return {"bank_name": "BBVA", "account_holder": "Hector Jahve Riveros Benitez", "card_number": "**** **** **** 9558", "configured": False, "is_active": False}
+        return {"bank_name": None, "account_holder": None, "card_number": None, "configured": False, "is_active": False}
     card = config.get("card_number", "")
     masked = f"****-****-****-{card[-4:]}" if len(card) >= 4 else "****"
     return {"id": config.get("id"), "bank_name": config.get("bank_name"), "account_holder": config.get("account_holder"), "card_number": masked, "updated_by": config.get("updated_by"), "updated_at": config.get("updated_at"), "is_active": config.get("is_active"), "configured": True}

@@ -18,6 +18,15 @@ Railway es la opción más sencilla para un MVP: deploy automático desde GitHub
    ```
 8. **Dominio personalizado**: en Railway Dashboard → Settings → Domains, agrega `api.paljale.mx` y configura el CNAME en tu DNS.
 
+### Checklist si el servicio crashea con `ServerSelectionTimeoutError: localhost:27017`
+
+Este error significa que `MONGO_URL` no llegó como variable de entorno al proceso — el código ya no cae en un default de `localhost` en silencio, así que si esto ocurre revisa:
+
+- Que `MONGO_URL` (o `MONGODB_URI`, ambos nombres son aceptados) esté seteada en **Service → Variables** del servicio correcto, no solo a nivel de proyecto compartido.
+- Que no sea una "reference variable" (`${{...}}`) que quedó sin resolver.
+- Que la URI tenga el formato `mongodb+srv://usuario:password@cluster.mongodb.net/?retryWrites=true&w=majority`, con el password URL-encoded si tiene caracteres especiales (`@`, `:`, `/`, etc.).
+- Qué rama y repo de GitHub está conectado al servicio en Railway (Settings → Source) — confirma que es la rama `main`.
+
 ### MongoDB Atlas (gratis)
 
 1. Crear cluster M0 gratis.

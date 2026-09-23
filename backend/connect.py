@@ -1,4 +1,5 @@
 import os
+import logging
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request
 from datetime import datetime
@@ -6,9 +7,14 @@ from database import get_db
 from auth_utils import require_provider, UserContext
 from models import ConnectAccountRequest, ConnectAccountResponse, ConnectStatusResponse
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/connect", tags=["Stripe Connect"])
 
-stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "sk_test_emergent")
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+if not STRIPE_SECRET_KEY:
+    raise RuntimeError("STRIPE_SECRET_KEY no está configurada.")
+stripe.api_key = STRIPE_SECRET_KEY
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://paljale.mx")
 
 @router.post("/account", response_model=ConnectAccountResponse)
@@ -19,13 +25,17 @@ async def create_connect_account(payload: ConnectAccountRequest, user: UserConte
     if existing and existing.get("stripe_connect_account_id"):
         account_id = existing["stripe_connect_account_id"]
     else:
-        account = stripe.Account.create(
-            type="express",
-            country=payload.country,
-            business_type=payload.business_type,
-            capabilities={"card_payments": {"requested": True}, "transfers": {"requested": True}},
-            metadata={"paljale_user_id": user.id, "email": user.email}
-        )
+        try:
+            account = stripe.Account.create(
+                type="express",
+                country=payload.country,
+                business_type=payload.business_type,
+                capabilities={"card_payments": {"requested": True}, "transfers": {"requested": True}},
+                metadata={"paljale_user_id": user.id, "email": user.email}
+            )
+        except stripe.error.StripeError as e:
+            logger.error("Fallo creando cuenta de Stripe Connect para user %s: %s", user.id, e)
+            raise HTTPException(status_code=502, detail="Error al comunicarse con Stripe")
         account_id = account.id
         await db.users.update_one(
             {"id": user.id},
@@ -37,12 +47,16 @@ async def create_connect_account(payload: ConnectAccountRequest, user: UserConte
                 "updated_at": now_iso
             }}
         )
-    link = stripe.AccountLink.create(
-        account=account_id,
-        refresh_url=f"{FRONTEND_URL}/provider/connect?refresh=1",
-        return_url=f"{FRONTEND_URL}/provider/connect?success=1",
-        type="account_onboarding"
-    )
+    try:
+        link = stripe.AccountLink.create(
+            account=account_id,
+            refresh_url=f"{FRONTEND_URL}/provider/connect?refresh=1",
+            return_url=f"{FRONTEND_URL}/provider/connect?success=1",
+            type="account_onboarding"
+        )
+    except stripe.error.StripeError as e:
+        logger.error("Fallo creando AccountLink de Stripe para cuenta %s: %s", account_id, e)
+        raise HTTPException(status_code=502, detail="Error al comunicarse con Stripe")
     return {"stripe_account_id": account_id, "account_link_url": link.url}
 
 @router.post("/account-link")

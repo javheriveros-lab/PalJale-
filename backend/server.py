@@ -1,7 +1,9 @@
 import os
+import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from database import init_indexes
 import auth
 import products
@@ -26,12 +28,27 @@ import insurance
 import subscriptions
 import geolocation_routes
 
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO"),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_indexes()
+    try:
+        await init_indexes()
+    except Exception:
+        logger.exception("Fallo al inicializar índices de MongoDB — el servicio no puede arrancar correctamente")
+        raise
     yield
 
 app = FastAPI(title="Pal Jale API", lifespan=lifespan)
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("Error no manejado en %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 # Configuración robusta de CORS para producción y desarrollo
 raw_origins = os.getenv("ALLOWED_ORIGINS", "")

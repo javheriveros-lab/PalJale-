@@ -7,7 +7,10 @@ from auth_utils import require_provider, UserContext
 
 router = APIRouter(prefix="/api/subscriptions", tags=["Subscriptions Pro"])
 
-stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "sk_test_emergent")
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+if not STRIPE_SECRET_KEY:
+    raise RuntimeError("STRIPE_SECRET_KEY no está configurada.")
+stripe.api_key = STRIPE_SECRET_KEY
 PRO_PRICE_ID = os.getenv("STRIPE_PRO_PRICE_ID", "price_pro_mock")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://paljale.mx")
 

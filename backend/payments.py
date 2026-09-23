@@ -1,4 +1,5 @@
 import os
+import logging
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
@@ -9,9 +10,14 @@ from auth_utils import get_current_user, UserContext, require_admin, require_pro
 from bson import ObjectId
 from models import SetupIntentResponse, PaymentMethodCard, OneTapPaymentRequest
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/payments", tags=["Payments"])
 
-stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "sk_test_emergent")
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+if not STRIPE_SECRET_KEY:
+    raise RuntimeError("STRIPE_SECRET_KEY no está configurada.")
+stripe.api_key = STRIPE_SECRET_KEY
 PLATFORM_FEE_PERCENT = 0.05
 
 HTML_TEMPLATE = """
@@ -30,7 +36,11 @@ async def ensure_stripe_customer(db, user_id: str, email: str) -> str:
     user = await db.users.find_one({"id": user_id})
     if user and user.get("stripe_customer_id"):
         return user["stripe_customer_id"]
-    customer = stripe.Customer.create(email=email, metadata={"paljale_user_id": user_id})
+    try:
+        customer = stripe.Customer.create(email=email, metadata={"paljale_user_id": user_id})
+    except stripe.error.StripeError as e:
+        logger.error("Fallo creando cliente de Stripe para user %s: %s", user_id, e)
+        raise HTTPException(status_code=502, detail="Error al comunicarse con Stripe")
     await db.users.update_one({"id": user_id}, {"$set": {"stripe_customer_id": customer.id, "updated_at": datetime.utcnow().isoformat()}})
     return customer.id
 
@@ -38,7 +48,11 @@ async def ensure_stripe_customer(db, user_id: str, email: str) -> str:
 async def create_setup_intent(user: UserContext = Depends(get_current_user)):
     db = await get_db()
     customer_id = await ensure_stripe_customer(db, user.id, user.email)
-    intent = stripe.SetupIntent.create(customer=customer_id, payment_method_types=["card"], metadata={"paljale_user_id": user.id})
+    try:
+        intent = stripe.SetupIntent.create(customer=customer_id, payment_method_types=["card"], metadata={"paljale_user_id": user.id})
+    except stripe.error.StripeError as e:
+        logger.error("Fallo creando SetupIntent para user %s: %s", user.id, e)
+        raise HTTPException(status_code=502, detail="Error al comunicarse con Stripe")
     return {"client_secret": intent.client_secret, "stripe_customer_id": customer_id}
 
 @router.get("/payment-methods")
@@ -48,7 +62,11 @@ async def list_payment_methods(user: UserContext = Depends(get_current_user)):
     customer_id = user_doc.get("stripe_customer_id") if user_doc else None
     if not customer_id:
         return {"items": []}
-    methods = stripe.PaymentMethod.list(customer=customer_id, type="card")
+    try:
+        methods = stripe.PaymentMethod.list(customer=customer_id, type="card")
+    except stripe.error.StripeError as e:
+        logger.error("Fallo listando métodos de pago de Stripe para user %s: %s", user.id, e)
+        raise HTTPException(status_code=502, detail="Error al comunicarse con Stripe")
     items = []
     for m in methods.data:
         items.append(PaymentMethodCard(id=m.id, brand=m.card.brand, last4=m.card.last4, exp_month=m.card.exp_month, exp_year=m.card.exp_year, is_default=(m.id == user_doc.get("default_payment_method_id"))))

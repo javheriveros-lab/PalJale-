@@ -1,5 +1,6 @@
 import os
 import base64
+import logging
 import tempfile
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -12,6 +13,8 @@ try:
     from fpdf import FPDF
 except ImportError:
     FPDF = None
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/contracts", tags=["Contracts"])
 
@@ -128,7 +131,7 @@ async def generate_contract_pdf(order_id: str, user: UserContext = Depends(get_c
                 except OSError:
                     pass
             except Exception:
-                pass
+                logger.warning("No se pudo incrustar foto de entrega %s en contrato de orden %s", idx, order_id, exc_info=True)
         if len(dc["fotos_b64"]) % 2 == 1:
             pdf.ln(50)
     pdf.set_font("Arial", "B", 10)
@@ -146,6 +149,7 @@ async def generate_contract_pdf(order_id: str, user: UserContext = Depends(get_c
             except OSError:
                 pass
         except Exception:
+            logger.warning("No se pudo incrustar firma de entrega en contrato de orden %s", order_id, exc_info=True)
             pdf.cell(0, 6, "[Firma no disponible]", 0, 1)
     else:
         pdf.cell(0, 6, "[Sin firma registrada]", 0, 1)
@@ -169,7 +173,7 @@ async def generate_contract_pdf(order_id: str, user: UserContext = Depends(get_c
                 except OSError:
                     pass
             except Exception:
-                pass
+                logger.warning("No se pudo incrustar foto de devolución %s en contrato de orden %s", idx, order_id, exc_info=True)
     pdf.set_font("Arial", "B", 10)
     pdf.cell(0, 8, "Firma digital de devolución:", 0, 1)
     if rc.get("signature_b64"):
@@ -185,6 +189,7 @@ async def generate_contract_pdf(order_id: str, user: UserContext = Depends(get_c
             except OSError:
                 pass
         except Exception:
+            logger.warning("No se pudo incrustar firma de devolución en contrato de orden %s", order_id, exc_info=True)
             pdf.cell(0, 6, "[Firma no disponible]", 0, 1)
     else:
         pdf.cell(0, 6, "[Sin firma registrada]", 0, 1)

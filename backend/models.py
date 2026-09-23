@@ -4,8 +4,8 @@ from datetime import datetime
 
 class BankConfigRequest(BaseModel):
     bank_name: str = Field(..., example="BBVA")
-    account_holder: str = Field(..., example="Hector Jahve Riveros Benitez")
-    card_number: str = Field(..., min_length=13, max_length=19, example="4152314134939558")
+    account_holder: str = Field(..., example="Juan Pérez")
+    card_number: str = Field(..., min_length=13, max_length=19, example="4111111111111111")
 
 class BankConfigResponse(BaseModel):
     id: str

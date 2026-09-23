@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime, timedelta
 from typing import Optional
@@ -5,6 +6,8 @@ from database import get_db
 from auth_utils import get_current_user, UserContext
 from bson import ObjectId
 import httpx
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/notifications", tags=["Notifications"])
 
@@ -38,7 +41,7 @@ async def notify_user_push(user_id: str, title: str, body: str, data: dict = Non
         try:
             await client.post(EXPO_PUSH_URL, json=payloads, headers={"Accept": "application/json", "Accept-Encoding": "gzip, deflate", "Content-Type": "application/json"})
         except Exception:
-            pass
+            logger.warning("Fallo enviando push a Expo para user %s", user_id, exc_info=True)
 
 async def create_notification(db, user_id: str, type_: str, title: str, body: str, order_id: Optional[str] = None, inspection_id: Optional[str] = None, priority: str = "normal"):
     key = await _dedup_key(user_id, type_, order_id, inspection_id)

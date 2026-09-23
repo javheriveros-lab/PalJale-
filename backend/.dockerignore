@@ -1,0 +1,26 @@
+# Credenciales y variables de entorno
+.env
+.env.*
+!.env.example
+
+# Entorno virtual y bytecode de Python
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Git
+.git/
+.gitignore
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs y bases de datos locales
+*.log
+*.sqlite3
