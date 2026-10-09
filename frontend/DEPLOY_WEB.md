@@ -9,13 +9,17 @@ Railway — el backend (`pal-jale/backend`) sigue siendo su propio servicio en
 
 1. En el mismo proyecto de Railway donde ya está el backend, **New Service →
    Deploy from GitHub repo**, seleccionando este mismo repo.
-2. En **Settings → Build**, apunta el Dockerfile a `frontend/Dockerfile.web`
-   (y el "Root Directory" a `frontend/` si Railway lo pide).
+2. En **Settings → Build**, pon el **Root Directory** en `frontend` y deja el
+   campo **Dockerfile Path vacío** — Railway detecta automáticamente el
+   archivo `Dockerfile` dentro de esa carpeta sin necesidad de especificar
+   ninguna ruta (evita por completo la ambigüedad de rutas relativas vs.
+   absolutas que causó varios intentos fallidos al usar `Dockerfile.web`
+   como nombre no estándar).
 3. **Variables de entorno** del nuevo servicio:
    - `EXPO_PUBLIC_BACKEND_URL=https://api.paljale.mx`
    - `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...` (la clave publicable de
      Stripe en modo producción; nunca la clave secreta aquí).
-   Estas se usan como build args (`ARG`) en `Dockerfile.web`, así que deben
+   Estas se usan como build args (`ARG`) en `Dockerfile`, así que deben
    estar configuradas **antes** del primer deploy — un export estático ya
    generado no lee variables de entorno en runtime.
 4. **Dominio personalizado**: en Settings → Domains, agrega `paljale.mx`
