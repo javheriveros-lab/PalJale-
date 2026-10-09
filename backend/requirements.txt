@@ -4,6 +4,7 @@ motor
 pydantic
 python-jose[cryptography]
 passlib[bcrypt]
+bcrypt==4.0.1
 stripe==15.4.0
 cryptography
 python-dotenv

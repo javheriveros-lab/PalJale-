@@ -9,6 +9,15 @@ import Button from '../../src/components/ui/Button';
 import RoleCard from '../../src/components/ui/RoleCard';
 import { colors, spacing, radii, shadows } from '../../src/theme';
 
+function notify(title: string, message: string) {
+  if (Platform.OS === 'web') {
+    // eslint-disable-next-line no-alert
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+}
+
 const ROLES = [
   { value: 'cliente', title: 'Cliente', description: 'Rento o compro equipo y materiales', icon: User },
   { value: 'proveedor', title: 'Proveedor', description: 'Vendo o rento equipo y materiales', icon: Store },
@@ -26,6 +35,7 @@ export default function RegisterScreen() {
     email: '', password: '', full_name: '', phone: '', role: 'cliente', address: '', profession: '', experience_years: 0,
   });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const isProviderLike = payload.role === 'proveedor' || payload.role === 'profesional';
 
@@ -34,15 +44,22 @@ export default function RegisterScreen() {
   }
 
   async function handleRegister() {
+    setError('');
     if (!payload.email || !payload.password || !payload.full_name || !payload.phone) {
-      Alert.alert('Error', 'Completa los campos obligatorios'); return;
+      const msg = 'Completa los campos obligatorios';
+      setError(msg);
+      notify('Error', msg);
+      return;
     }
     try {
       setLoading(true);
       await register(payload);
-      router.replace('/(tabs)');
+      router.replace('/(auth)/verify');
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'No se pudo registrar');
+      const msg = err.message || 'No se pudo registrar';
+      setError(msg);
+      notify('Error', msg);
+      console.error('Error al registrar:', err);
     } finally {
       setLoading(false);
     }
@@ -56,6 +73,8 @@ export default function RegisterScreen() {
             <View style={styles.headerIcon}><UserPlus size={24} color={colors.primary} /></View>
             <Text style={styles.title}>Crear cuenta</Text>
           </View>
+
+          {!!error && <Text style={styles.errorText}>{error}</Text>}
 
           <TextField label="Nombre completo" value={payload.full_name} onChangeText={(v) => update('full_name', v)} placeholder="Tu nombre" />
           <TextField label="Email" value={payload.email} onChangeText={(v) => update('email', v)} placeholder="correo@ejemplo.com" autoCapitalize="none" keyboardType="email-address" leftIcon={<Mail size={18} color={colors.textMuted} />} />
@@ -124,6 +143,7 @@ const styles = StyleSheet.create({
   headerIcon: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', marginRight: spacing.md },
   title: { fontSize: 24, fontWeight: '800', color: colors.textPrimary },
   label: { fontSize: 13, fontWeight: '600', color: colors.textSecondary, marginBottom: spacing.sm, marginTop: spacing.xs },
+  errorText: { fontSize: 14, color: '#dc2626', backgroundColor: '#fef2f2', borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.lg },
   roleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.lg },
   submitBtnWrapper: { marginTop: spacing.lg, alignItems: 'center' },
   submitBtn: { width: '100%', maxWidth: 320, alignSelf: 'center' },

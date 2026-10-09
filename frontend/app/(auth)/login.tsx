@@ -9,6 +9,15 @@ import Button from '../../src/components/ui/Button';
 import Logo from '../../src/components/ui/Logo';
 import { colors, spacing, radii, shadows } from '../../src/theme';
 
+function notify(title: string, message: string) {
+  if (Platform.OS === 'web') {
+    // eslint-disable-next-line no-alert
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+}
+
 export default function LoginScreen() {
   const router = useRouter();
   const { user, login } = useAuth();
@@ -22,15 +31,25 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   async function handleLogin() {
-    if (!email || !password) { Alert.alert('Error', 'Ingresa email y contraseña'); return; }
+    setError('');
+    if (!email || !password) {
+      const msg = 'Ingresa email y contraseña';
+      setError(msg);
+      notify('Error', msg);
+      return;
+    }
     try {
       setLoading(true);
       await login(email, password);
       router.replace('/(tabs)');
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'No se pudo iniciar sesión');
+      const msg = err.message || 'No se pudo iniciar sesión';
+      setError(msg);
+      notify('Error', msg);
+      console.error('Error al iniciar sesión:', err);
     } finally {
       setLoading(false);
     }
@@ -44,6 +63,8 @@ export default function LoginScreen() {
         </View>
         <Text style={styles.title}>Pal Jale</Text>
         <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
+
+        {!!error && <Text style={styles.errorText}>{error}</Text>}
 
         <TextField
           label="Email"
@@ -84,6 +105,7 @@ const styles = StyleSheet.create({
   logoBox: { alignSelf: 'center', marginBottom: spacing.lg, backgroundColor: colors.card, borderRadius: radii.xl, padding: spacing.lg, ...shadows.md },
   title: { fontSize: 28, fontWeight: '800', color: colors.textPrimary, textAlign: 'center' },
   subtitle: { fontSize: 14, color: colors.textMuted, textAlign: 'center', marginBottom: spacing.xxl, marginTop: spacing.xs },
+  errorText: { fontSize: 14, color: '#dc2626', backgroundColor: '#fef2f2', borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.lg },
   submitBtn: { marginTop: spacing.sm },
   linkBtn: { marginTop: spacing.xl, alignSelf: 'center' },
   linkText: { color: colors.textMuted, fontSize: 14 },
