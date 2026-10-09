@@ -5,6 +5,7 @@ from database import get_db
 from auth_utils import get_current_user, UserContext
 from bson import ObjectId
 from notifications import on_new_order
+from payments import create_checkout_session_for_orders
 
 router = APIRouter(prefix="/api/cart", tags=["Cart"])
 
@@ -144,6 +145,12 @@ async def checkout_cart(payload: Optional[dict] = Body(None), user: UserContext 
         }
         await db.orders.insert_one(order)
         await on_new_order(db, item["provider_id"], order_id)
-        created_orders.append({"order_id": order_id, "product_title": item["product_title"], "total_mxn": order["total_mxn"]})
+        created_orders.append(order)
     await db.carts.delete_one({"user_id": user.id})
-    return {"success": True, "orders": created_orders}
+    checkout = await create_checkout_session_for_orders(db, user, created_orders)
+    return {
+        "success": True,
+        "orders": [{"order_id": o["id"], "product_title": o["product_title"], "total_mxn": o["total_mxn"]} for o in created_orders],
+        "checkout_url": checkout["url"],
+        "session_id": checkout["session_id"],
+    }

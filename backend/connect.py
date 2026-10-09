@@ -62,10 +62,12 @@ async def create_connect_account(payload: ConnectAccountRequest, user: UserConte
 @router.post("/account-link")
 async def refresh_connect_account_link(payload: dict = None, user: UserContext = Depends(require_provider)):
     db = await get_db()
-    account_id = (payload.get("stripe_account_id") if payload else None)
-    if not account_id:
-        doc = await db.users.find_one({"id": user.id})
-        account_id = doc.get("stripe_connect_account_id") if doc else None
+    doc = await db.users.find_one({"id": user.id})
+    own_account_id = doc.get("stripe_connect_account_id") if doc else None
+    requested_account_id = payload.get("stripe_account_id") if payload else None
+    if requested_account_id and requested_account_id != own_account_id:
+        raise HTTPException(status_code=403, detail="Esta cuenta de Stripe Connect no te pertenece")
+    account_id = requested_account_id or own_account_id
     if not account_id:
         raise HTTPException(status_code=400, detail="Cuenta de Stripe Connect no encontrada")
     try:

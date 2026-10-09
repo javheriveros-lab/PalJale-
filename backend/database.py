@@ -31,6 +31,7 @@ INDEXES = [
     ("settings", "key", {"unique": True}),
     ("bank_configs", "id", {"unique": True}),
     ("commission_payouts", "id", {"unique": True}),
+    ("commission_payouts", "order_id", {"unique": True}),
     ("chat_messages", [("order_id", 1), ("created_at", -1)], {}),
     ("push_tokens", [("user_id", 1), ("token", 1)], {"unique": True}),
     ("reviews", [("order_id", 1), ("type", 1)], {"unique": True}),

@@ -71,7 +71,9 @@ Variables obligatorias:
 - `ADMIN_PASSWORD`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_CONNECT_WEBHOOK_SECRET` — secreto del webhook de Stripe Connect (`/api/connect/webhook`), se genera en Stripe Dashboard → Developers → Webhooks → Add endpoint, suscrito al evento `account.updated`. Sin esta variable el webhook de Connect responde 500.
 - `STRIPE_PRO_PRICE_ID`
+- `BANK_DATA_ENCRYPTION_KEY` — clave Fernet para cifrar el número de cuenta bancaria de la plataforma en reposo. Generar con `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` y guardar en un gestor de secretos.
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
 - `AWS_REGION`

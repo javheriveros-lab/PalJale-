@@ -4,9 +4,15 @@ motor
 pydantic
 python-jose[cryptography]
 passlib[bcrypt]
-stripe
+stripe==15.4.0
+cryptography
 python-dotenv
 boto3
 botocore
 fpdf2
 httpx
+
+# Tests
+pytest
+pytest-asyncio
+mongomock-motor

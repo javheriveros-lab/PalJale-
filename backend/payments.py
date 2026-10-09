@@ -5,10 +5,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
 from datetime import datetime
 from typing import Optional
+from pymongo.errors import DuplicateKeyError
 from database import get_db
 from auth_utils import get_current_user, UserContext, require_admin, require_provider
 from bson import ObjectId
 from models import SetupIntentResponse, PaymentMethodCard, OneTapPaymentRequest
+from admin_bank import decrypt_card_number
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +21,14 @@ if not STRIPE_SECRET_KEY:
     raise RuntimeError("STRIPE_SECRET_KEY no está configurada.")
 stripe.api_key = STRIPE_SECRET_KEY
 PLATFORM_FEE_PERCENT = 0.05
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://paljale.mx")
+CHECKOUT_PAYMENT_METHOD_TYPES = ["card", "oxxo", "customer_balance"]
+CHECKOUT_PAYMENT_METHOD_OPTIONS = {
+    "customer_balance": {
+        "funding_type": "bank_transfer",
+        "bank_transfer": {"type": "mx_bank_transfer"},
+    }
+}
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -72,13 +82,39 @@ async def list_payment_methods(user: UserContext = Depends(get_current_user)):
         items.append(PaymentMethodCard(id=m.id, brand=m.card.brand, last4=m.card.last4, exp_month=m.card.exp_month, exp_year=m.card.exp_year, is_default=(m.id == user_doc.get("default_payment_method_id"))))
     return {"items": items}
 
+@router.get("/admin/users/{user_id}/payment-methods-summary")
+async def admin_payment_methods_summary(user_id: str, admin: UserContext = Depends(require_admin)):
+    """Resumen de solo lectura para soporte: nunca expone IDs de Stripe completos ni permite borrar."""
+    db = await get_db()
+    user_doc = await db.users.find_one({"id": user_id})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    customer_id = user_doc.get("stripe_customer_id")
+    if not customer_id:
+        return {"count": 0, "cards": []}
+    try:
+        methods = stripe.PaymentMethod.list(customer=customer_id, type="card")
+    except stripe.error.StripeError as e:
+        logger.error("Fallo listando métodos de pago (admin) para user %s: %s", user_id, e)
+        raise HTTPException(status_code=502, detail="Error al comunicarse con Stripe")
+    cards = [{"brand": m.card.brand, "last4": m.card.last4} for m in methods.data]
+    return {"count": len(cards), "cards": cards}
+
 @router.delete("/payment-methods/{pm_id}")
 async def delete_payment_method(pm_id: str, user: UserContext = Depends(get_current_user)):
+    db = await get_db()
+    user_doc = await db.users.find_one({"id": user.id})
+    customer_id = user_doc.get("stripe_customer_id") if user_doc else None
+    try:
+        pm = stripe.PaymentMethod.retrieve(pm_id)
+    except stripe.error.StripeError:
+        raise HTTPException(status_code=404, detail="Método de pago no encontrado")
+    if not customer_id or pm.customer != customer_id:
+        raise HTTPException(status_code=403, detail="Este método de pago no te pertenece")
     try:
         stripe.PaymentMethod.detach(pm_id)
     except stripe.error.StripeError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    db = await get_db()
     await db.users.update_one({"id": user.id, "default_payment_method_id": pm_id}, {"$unset": {"default_payment_method_id": ""}})
     return {"success": True}
 
@@ -94,10 +130,81 @@ async def create_checkout_session(payload: dict, user: UserContext = Depends(get
     if not order:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
     customer_id = await ensure_stripe_customer(db, user.id, user.email)
-    session_id = f"cs_mock_{ObjectId()}"
-    session_url = f"/api/payments/success?session_id={session_id}"
-    await db.orders.update_one({"id": order_id}, {"$set": {"stripe_session_id": session_id, "stripe_session_url": session_url, "payment_status": "pending", "stripe_customer_id": customer_id}})
-    return {"url": session_url, "session_id": session_id}
+    try:
+        session = stripe.checkout.Session.create(
+            mode="payment",
+            customer=customer_id,
+            payment_method_types=CHECKOUT_PAYMENT_METHOD_TYPES,
+            payment_method_options=CHECKOUT_PAYMENT_METHOD_OPTIONS,
+            line_items=[{
+                "price_data": {
+                    "currency": "mxn",
+                    "product_data": {"name": f"Pal Jale - {order.get('product_title', 'Orden ' + order_id)}"},
+                    "unit_amount": round(order["total_mxn"] * 100),
+                },
+                "quantity": 1,
+            }],
+            metadata={"type": "order_payment", "order_id": order_id, "paljale_user_id": user.id},
+            success_url=f"{FRONTEND_URL}/orders?payment=success&session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{FRONTEND_URL}/orders?payment=canceled",
+            idempotency_key=f"checkout-order-{order_id}",
+        )
+    except stripe.error.StripeError as e:
+        logger.error("Fallo creando Checkout Session para orden %s: %s", order_id, e)
+        raise HTTPException(status_code=502, detail="Error al comunicarse con Stripe")
+    await db.orders.update_one({"id": order_id}, {"$set": {"stripe_session_id": session.id, "stripe_session_url": session.url, "payment_status": "pending", "stripe_customer_id": customer_id}})
+    return {"url": session.url, "session_id": session.id}
+
+async def create_checkout_session_for_orders(db, user: UserContext, orders: list):
+    """Crea una Checkout Session real de Stripe para un lote de órdenes ya existentes.
+
+    Reutilizado tanto por el endpoint HTTP /checkout-session/cart como por
+    cart.py justo después de crear las órdenes del carrito, para no duplicar
+    la lógica de armado de la sesión de Stripe.
+    """
+    settings = await db.settings.find_one({"key": "global"})
+    if settings and settings.get("payments_enabled") is False:
+        reason = settings.get("kill_switch_reason") or "Mantenimiento temporal"
+        raise HTTPException(status_code=503, detail=f"Kill Switch activo: {reason}")
+    order_ids = [o["id"] for o in orders]
+    customer_id = await ensure_stripe_customer(db, user.id, user.email)
+    line_items = [{
+        "price_data": {
+            "currency": "mxn",
+            "product_data": {"name": f"Pal Jale - {o.get('product_title', 'Orden ' + o['id'])}"},
+            "unit_amount": round(o["total_mxn"] * 100),
+        },
+        "quantity": 1,
+    } for o in orders]
+    joined_ids = ",".join(order_ids)
+    try:
+        session = stripe.checkout.Session.create(
+            mode="payment",
+            customer=customer_id,
+            payment_method_types=CHECKOUT_PAYMENT_METHOD_TYPES,
+            payment_method_options=CHECKOUT_PAYMENT_METHOD_OPTIONS,
+            line_items=line_items,
+            metadata={"type": "cart_checkout", "order_ids": joined_ids, "paljale_user_id": user.id},
+            success_url=f"{FRONTEND_URL}/cart?payment=success&session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{FRONTEND_URL}/cart?payment=canceled",
+            idempotency_key=f"checkout-cart-{joined_ids}",
+        )
+    except stripe.error.StripeError as e:
+        logger.error("Fallo creando Checkout Session de carrito para user %s: %s", user.id, e)
+        raise HTTPException(status_code=502, detail="Error al comunicarse con Stripe")
+    await db.orders.update_many({"id": {"$in": order_ids}}, {"$set": {"stripe_session_id": session.id, "payment_status": "pending", "stripe_customer_id": customer_id}})
+    return {"url": session.url, "session_id": session.id}
+
+@router.post("/checkout-session/cart")
+async def create_cart_checkout_session(payload: dict, user: UserContext = Depends(get_current_user)):
+    db = await get_db()
+    order_ids = payload.get("order_ids") or []
+    if not order_ids:
+        raise HTTPException(status_code=400, detail="Se requiere al menos un order_id")
+    orders = await db.orders.find({"id": {"$in": order_ids}, "user_id": user.id}).to_list(length=len(order_ids))
+    if len(orders) != len(order_ids):
+        raise HTTPException(status_code=404, detail="Una o más órdenes no existen o no te pertenecen")
+    return await create_checkout_session_for_orders(db, user, orders)
 
 @router.post("/one-tap")
 async def one_tap_payment(payload: OneTapPaymentRequest, user: UserContext = Depends(get_current_user)):
@@ -109,10 +216,18 @@ async def one_tap_payment(payload: OneTapPaymentRequest, user: UserContext = Dep
     order = await db.orders.find_one({"id": payload.order_id, "user_id": user.id})
     if not order:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
-    total_cents = int(order["total_mxn"] * 100)
-    fee_cents = int(order["platform_fee_mxn"] * 100)
+    total_cents = round(order["total_mxn"] * 100)
     try:
-        intent = stripe.PaymentIntent.create(amount=total_cents, currency="mxn", customer=order.get("stripe_customer_id"), payment_method=payload.payment_method_id, off_session=True, confirm=True, metadata={"order_id": payload.order_id, "type": "one_tap"}, application_fee_amount=fee_cents)
+        intent = stripe.PaymentIntent.create(
+            amount=total_cents,
+            currency="mxn",
+            customer=order.get("stripe_customer_id"),
+            payment_method=payload.payment_method_id,
+            off_session=True,
+            confirm=True,
+            metadata={"order_id": payload.order_id, "type": "one_tap"},
+            idempotency_key=f"onetap-{payload.order_id}",
+        )
         now_iso = datetime.utcnow().isoformat()
         await db.orders.update_one({"id": payload.order_id}, {"$set": {"payment_status": "paid", "paid_at": now_iso, "updated_at": now_iso, "stripe_payment_intent_id": intent.id}})
         return {"success": True, "payment_intent_id": intent.id, "status": intent.status}
@@ -145,15 +260,21 @@ async def stripe_webhook(request: Request):
     if event_type == "checkout.session.completed":
         session = data_obj
         meta = session.get("metadata", {})
-        if meta.get("type") == "pro_subscription":
+        meta_type = meta.get("type")
+        payment_intent_id = session.get("payment_intent")
+        if meta_type == "pro_subscription":
             user_id = meta.get("paljale_user_id")
             sub_id = session.get("subscription")
             if user_id and sub_id:
                 await db.users.update_one({"id": user_id}, {"$set": {"is_pro": True, "pro_subscription_id": sub_id, "pro_status": "active", "updated_at": now_iso}})
-            return {"status": "success"}
-        order_id = meta.get("order_id")
-        if order_id:
-            await db.orders.update_one({"id": order_id}, {"$set": {"payment_status": "paid", "paid_at": now_iso, "updated_at": now_iso, "stripe_payment_intent_id": session.get("payment_intent", f"pi_{ObjectId()}")}})
+        elif meta_type == "cart_checkout":
+            order_ids = [oid for oid in meta.get("order_ids", "").split(",") if oid]
+            if order_ids:
+                await db.orders.update_many({"id": {"$in": order_ids}}, {"$set": {"payment_status": "paid", "paid_at": now_iso, "updated_at": now_iso, "stripe_payment_intent_id": payment_intent_id}})
+        else:
+            order_id = meta.get("order_id")
+            if order_id:
+                await db.orders.update_one({"id": order_id}, {"$set": {"payment_status": "paid", "paid_at": now_iso, "updated_at": now_iso, "stripe_payment_intent_id": payment_intent_id}})
     elif event_type == "invoice.paid":
         sub_id = data_obj.get("subscription")
         if sub_id:
@@ -184,9 +305,34 @@ async def release_deposit(order_id: str, user: UserContext = Depends(get_current
         raise HTTPException(status_code=403, detail="Solo el proveedor o admin pueden liberar el depósito")
     if order.get("deposit_status") != "held":
         raise HTTPException(status_code=400, detail="Depósito no retenido")
+    if not order.get("stripe_payment_intent_id"):
+        raise HTTPException(status_code=400, detail="Esta orden no tiene un cargo real de Stripe asociado; no hay nada que reembolsar")
+    deposit_mxn = order.get("deposit_mxn", 0)
+    if deposit_mxn <= 0:
+        raise HTTPException(status_code=400, detail="Esta orden no tiene depósito de garantía")
+
     now_iso = datetime.utcnow().isoformat()
-    await db.orders.update_one({"id": order_id}, {"$set": {"deposit_status": "released", "updated_at": now_iso}})
-    return {"success": True, "message": "Depósito liberado"}
+    claimed = await db.orders.find_one_and_update(
+        {"id": order_id, "deposit_status": "held"},
+        {"$set": {"deposit_status": "releasing", "updated_at": now_iso}},
+    )
+    if claimed is None:
+        raise HTTPException(status_code=400, detail="El depósito ya está siendo procesado o ya se resolvió")
+
+    try:
+        refund = stripe.Refund.create(
+            payment_intent=order["stripe_payment_intent_id"],
+            amount=round(deposit_mxn * 100),
+            metadata={"order_id": order_id, "reason": "deposit_release"},
+            idempotency_key=f"deposit-release-{order_id}",
+        )
+    except stripe.error.StripeError as e:
+        logger.error("Fallo reembolsando depósito de orden %s: %s", order_id, e)
+        await db.orders.update_one({"id": order_id}, {"$set": {"deposit_status": "held", "updated_at": datetime.utcnow().isoformat()}})
+        raise HTTPException(status_code=502, detail="No se pudo procesar el reembolso con Stripe")
+
+    await db.orders.update_one({"id": order_id}, {"$set": {"deposit_status": "released", "stripe_refund_id": refund.id, "updated_at": datetime.utcnow().isoformat()}})
+    return {"success": True, "message": "Depósito liberado y reembolsado", "stripe_refund_id": refund.id}
 
 @router.post("/deposit/{order_id}/capture")
 async def capture_deposit(order_id: str, user: UserContext = Depends(get_current_user)):
@@ -196,11 +342,13 @@ async def capture_deposit(order_id: str, user: UserContext = Depends(get_current
         raise HTTPException(status_code=404, detail="Orden no encontrada")
     if order["provider_id"] != user.id and user.role != "admin":
         raise HTTPException(status_code=403, detail="Solo el proveedor o admin pueden capturar el depósito")
-    if order.get("deposit_status") != "held":
-        raise HTTPException(status_code=400, detail="Depósito no retenido")
-    now_iso = datetime.utcnow().isoformat()
-    await db.orders.update_one({"id": order_id}, {"$set": {"deposit_status": "captured", "updated_at": now_iso}})
-    return {"success": True, "message": "Depósito capturado por daño"}
+    claimed = await db.orders.find_one_and_update(
+        {"id": order_id, "deposit_status": "held"},
+        {"$set": {"deposit_status": "captured", "updated_at": datetime.utcnow().isoformat()}},
+    )
+    if claimed is None:
+        raise HTTPException(status_code=400, detail="Depósito no retenido o ya se resolvió")
+    return {"success": True, "message": "Depósito capturado por daño: el monto ya cobrado se retiene, no se reembolsa"}
 
 @router.get("/success", response_class=HTMLResponse)
 async def payment_success():
@@ -218,9 +366,6 @@ async def auto_process_commission_on_return(db, order_id: str):
         return False
     if order.get("status") not in ["entregada", "devuelta"]:
         return False
-    existing = await db.commission_payouts.find_one({"order_id": order_id})
-    if existing:
-        return True
     bank_config = await db.bank_configs.find_one({"is_active": True})
     if not bank_config:
         return False
@@ -232,13 +377,17 @@ async def auto_process_commission_on_return(db, order_id: str):
         "order_id": order_id,
         "amount_mxn": round(commission_amount, 2),
         "platform_fee_percent": PLATFORM_FEE_PERCENT,
-        "bank_config_snapshot": {"bank_name": bank_config["bank_name"], "account_holder": bank_config["account_holder"], "card_number_last4": bank_config["card_number"][-4:]},
+        "bank_config_snapshot": {"bank_name": bank_config["bank_name"], "account_holder": bank_config["account_holder"], "card_number_last4": decrypt_card_number(bank_config["card_number"])[-4:]},
         "status": "pending",
         "stripe_transfer_id": None,
         "processed_at": None,
         "created_at": now_iso
     }
-    await db.commission_payouts.insert_one(payout_record)
+    try:
+        await db.commission_payouts.insert_one(payout_record)
+    except DuplicateKeyError:
+        # Ya existe un payout de comisión para esta orden (índice único en order_id) — evita duplicados por llamadas concurrentes.
+        return True
     await db.commission_payouts.update_one({"id": payout_record["id"]}, {"$set": {"status": "completed", "processed_at": now_iso, "stripe_transfer_id": f"tr_mock_{ObjectId()}"}})
     return True
 
@@ -260,13 +409,29 @@ async def transfer_to_provider(db, order_id: str):
     amount_mxn = order.get("subtotal_mxn", 0) - order.get("platform_fee_mxn", 0)
     if amount_mxn <= 0:
         return False
-    amount_cents = int(amount_mxn * 100)
+
+    claimed = await db.orders.find_one_and_update(
+        {"id": order_id, "provider_payout_status": {"$nin": ["transferred", "processing"]}},
+        {"$set": {"provider_payout_status": "processing", "updated_at": datetime.utcnow().isoformat()}},
+    )
+    if claimed is None:
+        current = await db.orders.find_one({"id": order_id}, {"provider_payout_status": 1})
+        return bool(current and current.get("provider_payout_status") == "transferred")
+
+    amount_cents = round(amount_mxn * 100)
     account_id = provider["stripe_connect_account_id"]
     try:
-        transfer = stripe.Transfer.create(amount=amount_cents, currency="mxn", destination=account_id, metadata={"order_id": order_id, "type": "provider_payout", "provider_id": provider["id"]})
+        transfer = stripe.Transfer.create(
+            amount=amount_cents,
+            currency="mxn",
+            destination=account_id,
+            metadata={"order_id": order_id, "type": "provider_payout", "provider_id": provider["id"]},
+            idempotency_key=f"transfer-{order_id}",
+        )
         await db.orders.update_one({"id": order_id}, {"$set": {"provider_payout_status": "transferred", "provider_payout_amount_mxn": amount_mxn, "stripe_transfer_id": transfer.id, "updated_at": datetime.utcnow().isoformat()}})
         return True
-    except stripe.error.StripeError:
+    except stripe.error.StripeError as e:
+        logger.error("Fallo transfiriendo a proveedor %s (orden %s): %s", provider["id"], order_id, e)
         await db.orders.update_one({"id": order_id}, {"$set": {"provider_payout_status": "failed", "updated_at": datetime.utcnow().isoformat()}})
         return False
 
