@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "851938997102",
+    "project_id": "pal-jale",
+    "storage_bucket": "pal-jale.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:851938997102:android:9c9d712119bec6c40b477f",
+        "android_client_info": {
+          "package_name": "com.paljale.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDshohVwqtihdvGrhY01X1LwdYVkvEJ-Cs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

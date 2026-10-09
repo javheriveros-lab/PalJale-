@@ -1,0 +1,100 @@
+{
+  "expo": {
+    "name": "Pal Jale",
+    "slug": "pal-jale",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "mx.paljale.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Pal Jale usa tu ubicación para mostrar equipos cercanos y calcular fletes.",
+        "NSLocationAlwaysUsageDescription": "Pal Jale usa tu ubicación para el tracking de entregas en tiempo real."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F37820"
+      },
+      "package": "com.paljale.app",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "WAKE_LOCK",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "googleServicesFile": "./google-services.json",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDshohVwqtihdvGrhY01X1LwdYVkvEJ-Cs"
+        }
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "static",
+      "name": "Pal Jale",
+      "themeColor": "#F37820",
+      "backgroundColor": "#F37820"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "5a2b6b79-15f9-41c6-8295-1b7d0e64cb10"
+      },
+      "router": {}
+    },
+    "updates": {
+      "url": "https://u.expo.dev/5a2b6b79-15f9-41c6-8295-1b7d0e64cb10",
+      "checkAutomatically": "ON_LOAD"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Pal Jale usa tu ubicación para mostrar equipos cercanos y tracking de entregas."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#F37820"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#F37820",
+          "sounds": [
+            "./assets/notification_sound.wav"
+          ]
+        }
+      ],
+      [
+        "@stripe/stripe-react-native",
+        {
+          "enableGooglePay": false
+        }
+      ]
+    ],
+    "scheme": "paljale",
+    "owner": "paljale"
+  }
+}

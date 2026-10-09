@@ -1,0 +1,16 @@
+.env
+.env.local
+.env.*.local
+
+node_modules/
+.expo/
+dist/
+web-build/
+
+# Credenciales de plataformas (NO subir a git)
+google-play-service-account.json
+
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

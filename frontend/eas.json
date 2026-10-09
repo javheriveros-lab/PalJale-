@@ -1,0 +1,41 @@
+{
+  "cli": {
+    "version": ">= 10.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_BACKEND_URL": "https://api.paljale.mx/api"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_BACKEND_URL": "https://api.paljale.mx/api",
+        "NEW_ARCH_ENABLED": "0"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_BACKEND_URL": "https://api.paljale.mx/api"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "YOUR_APPLE_APP_ID"
+      },
+      "android": {
+        "track": "internal",
+        "serviceAccountKeyPath": "./google-play-service-account.json"
+      }
+    }
+  }
+}
