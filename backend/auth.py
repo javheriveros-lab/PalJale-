@@ -45,12 +45,19 @@ class LoginRequest(BaseModel):
         return v.strip().lower()
 
 
+def _truncate_to_bcrypt_limit(password: str) -> str:
+    # bcrypt solo procesa los primeros 72 bytes de la contraseña; versiones
+    # recientes de la librería lanzan ValueError en vez de truncar en
+    # silencio, así que lo hacemos nosotros antes de pasarla a passlib.
+    return password.encode("utf-8")[:72].decode("utf-8", errors="ignore")
+
+
 def _hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return pwd_context.hash(_truncate_to_bcrypt_limit(password))
 
 
 def _verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return pwd_context.verify(_truncate_to_bcrypt_limit(plain), hashed)
 
 
 def _create_access_token(user_id: str, email: str, role: str) -> str:
