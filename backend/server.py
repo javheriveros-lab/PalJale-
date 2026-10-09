@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from database import init_indexes
+from database import init_indexes, client as mongo_client
 import auth
 import products
 import orders
@@ -103,4 +103,21 @@ app.include_router(geolocation_routes.router)
 @app.get("/api/")
 async def health():
     return {"status": "ok", "service": "pal-jale-api"}
+
+@app.get("/api/health")
+async def health_check():
+    """Health check real: además de confirmar que el proceso responde,
+    verifica conectividad con MongoDB. Pensado para el healthcheck de
+    Railway y para el ping de keep-alive (ver .github/workflows/keep-alive.yml)."""
+    try:
+        await mongo_client.admin.command("ping")
+        db_ok = True
+    except Exception:
+        logger.exception("Health check: fallo al hacer ping a MongoDB")
+        db_ok = False
+    status_code = 200 if db_ok else 503
+    return JSONResponse(
+        status_code=status_code,
+        content={"status": "ok" if db_ok else "degraded", "service": "pal-jale-api", "database": "ok" if db_ok else "unreachable"},
+    )
 

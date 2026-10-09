@@ -125,3 +125,8 @@ Para enviar notificaciones push desde el backend:
 
 - Configura `EXPO_ACCESS_TOKEN` si usas Expo Push Service.
 - O configura `GOOGLE_APPLICATION_CREDENTIALS` apuntando a `backend/firebase-admin-sdk.json` si usas Firebase Admin SDK.
+
+## 8. Health check y keep-alive
+
+- `GET /api/health` — health check real (además de confirmar que el proceso responde, hace ping a MongoDB). Devuelve `200` con `{"status":"ok","database":"ok"}` si todo está bien, o `503` con `"database":"unreachable"` si Mongo no responde. Úsalo como healthcheck path del servicio en Railway (Settings → Deploy → Healthcheck Path) en vez de `/api/`.
+- `.github/workflows/keep-alive.yml` — pinguea el backend (`/api/health`) y la web cada 10 minutos para evitar que se marquen como inactivos. Los defaults apuntan a los dominios de Railway (`paljale-production.up.railway.app` / `caring-miracle-production-4a1b.up.railway.app`); cuando los dominios personalizados (`api.paljale.mx` / `paljale.mx`) estén resolviendo en DNS, configura las variables del repo `BACKEND_HEALTH_URL` y `WEB_URL` en GitHub → Settings → Secrets and variables → Actions → Variables para que el workflow los use sin tocar el YAML.

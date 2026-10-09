@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, Link, Redirect } from 'expo-router';
+import { Mail, Lock } from 'lucide-react-native';
 import { useAuth } from '../../src/contexts/AuthContext';
-import { Truck } from 'lucide-react-native';
-
-const THEME_ORANGE = '#F37820';
+import TextField from '../../src/components/ui/TextField';
+import Button from '../../src/components/ui/Button';
+import Logo from '../../src/components/ui/Logo';
+import { colors, spacing, radii, shadows } from '../../src/theme';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -36,31 +38,54 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.logoBox}><Truck size={48} color={THEME_ORANGE} /></View>
-      <Text style={styles.title}>Pal Jale</Text>
-      <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
-      <TextInput style={styles.input} placeholder="Email" autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} />
-      <TextInput style={styles.input} placeholder="Contraseña" secureTextEntry value={password} onChangeText={setPassword} />
-      <TouchableOpacity style={[styles.btn, loading && styles.btnDisabled]} onPress={handleLogin} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Iniciar sesión</Text>}
-      </TouchableOpacity>
-      <Link href="/(auth)/register" asChild>
-        <TouchableOpacity style={styles.linkBtn}><Text style={styles.linkText}>¿No tienes cuenta? <Text style={styles.linkBold}>Regístrate</Text></Text></TouchableOpacity>
-      </Link>
+      <View style={styles.card}>
+        <View style={styles.logoBox}>
+          <Logo variant="mark" size={56} />
+        </View>
+        <Text style={styles.title}>Pal Jale</Text>
+        <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
+
+        <TextField
+          label="Email"
+          placeholder="correo@ejemplo.com"
+          autoCapitalize="none"
+          keyboardType="email-address"
+          value={email}
+          onChangeText={setEmail}
+          leftIcon={<Mail size={18} color={colors.textMuted} />}
+        />
+        <TextField
+          label="Contraseña"
+          placeholder="Mínimo 6 caracteres"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+          leftIcon={<Lock size={18} color={colors.textMuted} />}
+        />
+
+        <Button title="Iniciar sesión" onPress={handleLogin} loading={loading} style={styles.submitBtn} />
+
+        <Link href="/(auth)/register" asChild>
+          <TouchableOpacity style={styles.linkBtn}>
+            <Text style={styles.linkText}>¿No tienes cuenta? <Text style={styles.linkBold}>Regístrate</Text></Text>
+          </TouchableOpacity>
+        </Link>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5', padding: 24, justifyContent: 'center' },
-  logoBox: { alignSelf: 'center', marginBottom: 16, backgroundColor: '#fff', borderRadius: 20, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
-  title: { fontSize: 28, fontWeight: '800', color: '#1a1a1a', textAlign: 'center' },
-  subtitle: { fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 28 },
-  input: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e0e0e0', paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, marginBottom: 14 },
-  btn: { backgroundColor: THEME_ORANGE, borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 8 },
-  btnDisabled: { opacity: 0.6 },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  linkBtn: { marginTop: 20, alignSelf: 'center' },
-  linkText: { color: '#555', fontSize: 14 },
-  linkBold: { color: THEME_ORANGE, fontWeight: '700' },
+  container: { flex: 1, backgroundColor: colors.bg, padding: spacing.xxl, justifyContent: 'center' },
+  card: Platform.select({
+    web: { maxWidth: 420, width: '100%', alignSelf: 'center', backgroundColor: colors.card, borderRadius: radii.xl, padding: spacing.xxxl, borderWidth: 1, borderColor: colors.border, ...shadows.lg },
+    default: {},
+  }) as object,
+  logoBox: { alignSelf: 'center', marginBottom: spacing.lg, backgroundColor: colors.card, borderRadius: radii.xl, padding: spacing.lg, ...shadows.md },
+  title: { fontSize: 28, fontWeight: '800', color: colors.textPrimary, textAlign: 'center' },
+  subtitle: { fontSize: 14, color: colors.textMuted, textAlign: 'center', marginBottom: spacing.xxl, marginTop: spacing.xs },
+  submitBtn: { marginTop: spacing.sm },
+  linkBtn: { marginTop: spacing.xl, alignSelf: 'center' },
+  linkText: { color: colors.textMuted, fontSize: 14 },
+  linkBold: { color: colors.primary, fontWeight: '700' },
 });
