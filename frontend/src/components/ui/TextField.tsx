@@ -59,9 +59,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   inputBoxFocused: {
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.15,
+    shadowColor: colors.textPrimary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 2,
   },

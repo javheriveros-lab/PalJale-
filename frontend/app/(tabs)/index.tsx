@@ -11,6 +11,15 @@ const CATEGORIES: Category[] = ['maquinaria', 'herramientas', 'materiales', 'per
 const TRANSACTIONS: TransactionType[] = ['venta', 'renta'];
 const IS_WEB = Platform.OS === 'web';
 
+function notify(title: string, message: string) {
+  if (Platform.OS === 'web') {
+    // eslint-disable-next-line no-alert
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
@@ -29,7 +38,8 @@ export default function HomeScreen() {
       const res = await apiClient(`/api/products?${qs.toString()}`);
       setProducts(Array.isArray(res) ? res : res.items || []);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'No se pudieron cargar productos');
+      notify('Error', err.message || 'No se pudieron cargar productos');
+      console.error('Error al cargar productos:', err);
     } finally {
       setLoading(false);
     }

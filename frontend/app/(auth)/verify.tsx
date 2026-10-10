@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, Redirect } from 'expo-router';
 import { apiClient } from '../../src/api/client';
 import { useAuth } from '../../src/contexts/AuthContext';
 import S3ImagePicker from '../../src/components/S3ImagePicker';
+import Button from '../../src/components/ui/Button';
 import { ShieldCheck } from 'lucide-react-native';
-
-const THEME_ORANGE = '#F37820';
+import { colors, spacing, radii, shadows } from '../../src/theme';
 
 function notify(title: string, message: string, onOk?: () => void) {
   if (Platform.OS === 'web') {
@@ -59,32 +59,38 @@ export default function VerifyScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.header}><ShieldCheck size={40} color={THEME_ORANGE} /><Text style={styles.title}>Verificar identidad</Text></View>
-        <Text style={styles.desc}>Sube una foto de tu INE por el frente, una selfie y tu comprobante de domicilio para validar tu cuenta.</Text>
-        {!!error && <Text style={styles.errorText}>{error}</Text>}
-        <Text style={styles.label}>INE frontal</Text>
-        <S3ImagePicker folder="kyc/ine" onUploaded={setIneFront} size={160} />
-        <Text style={styles.label}>Selfie</Text>
-        <S3ImagePicker folder="kyc/selfies" onUploaded={setSelfie} size={160} />
-        <Text style={styles.label}>Comprobante de domicilio</Text>
-        <S3ImagePicker folder="kyc/address-proof" onUploaded={setAddressProof} size={160} />
-        <TouchableOpacity style={[styles.btn, loading && styles.btnDisabled]} onPress={handleSubmit} disabled={loading}>
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Enviar verificación</Text>}
-        </TouchableOpacity>
+        <View style={styles.card}>
+          <View style={styles.header}>
+            <View style={styles.headerIcon}><ShieldCheck size={24} color={colors.primary} /></View>
+            <Text style={styles.title}>Verificar identidad</Text>
+          </View>
+          <Text style={styles.desc}>Sube una foto de tu INE por el frente, una selfie y tu comprobante de domicilio para validar tu cuenta.</Text>
+          {!!error && <Text style={styles.errorText}>{error}</Text>}
+          <Text style={styles.label}>INE frontal</Text>
+          <S3ImagePicker folder="kyc/ine" onUploaded={setIneFront} size={160} />
+          <Text style={styles.label}>Selfie</Text>
+          <S3ImagePicker folder="kyc/selfies" onUploaded={setSelfie} size={160} />
+          <Text style={styles.label}>Comprobante de domicilio</Text>
+          <S3ImagePicker folder="kyc/address-proof" onUploaded={setAddressProof} size={160} />
+          <Button title="Enviar verificación" onPress={handleSubmit} loading={loading} style={styles.submitBtn} />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  scroll: { padding: 24, paddingBottom: 40 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
-  title: { fontSize: 24, fontWeight: '800', color: '#1a1a1a' },
-  desc: { fontSize: 14, color: '#666', lineHeight: 20, marginBottom: 24 },
-  errorText: { fontSize: 14, color: '#dc2626', backgroundColor: '#fef2f2', borderRadius: 8, padding: 12, marginBottom: 16 },
-  label: { fontSize: 13, fontWeight: '600', color: '#444', marginBottom: 12, marginTop: 20 },
-  btn: { backgroundColor: THEME_ORANGE, borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 32 },
-  btnDisabled: { opacity: 0.6 },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  container: { flex: 1, backgroundColor: colors.bg },
+  scroll: { padding: spacing.xxl, paddingBottom: spacing.xxxl * 2 },
+  card: Platform.select({
+    web: { maxWidth: 520, width: '100%', alignSelf: 'center', backgroundColor: colors.card, borderRadius: radii.lg, padding: spacing.xxxl, borderWidth: 1, borderColor: colors.border, ...shadows.lg },
+    default: {},
+  }) as object,
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.lg },
+  headerIcon: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', marginRight: spacing.md },
+  title: { fontSize: 24, fontWeight: '800', color: colors.textPrimary },
+  desc: { fontSize: 14, color: colors.textMuted, lineHeight: 20, marginBottom: spacing.xxl },
+  errorText: { fontSize: 14, color: colors.danger, backgroundColor: colors.dangerBg, borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.lg },
+  label: { fontSize: 13, fontWeight: '600', color: colors.textSecondary, marginBottom: spacing.md, marginTop: spacing.xl },
+  submitBtn: { marginTop: spacing.xxl },
 });

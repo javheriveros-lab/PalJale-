@@ -18,6 +18,16 @@ function notify(title: string, message: string) {
   }
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function validateRegister(payload: RegisterPayload): string | null {
+  if (!payload.full_name.trim()) return 'Ingresa tu nombre completo';
+  if (!EMAIL_RE.test(payload.email.trim())) return 'Ingresa un email válido';
+  if (payload.password.length < 6) return 'La contraseña debe tener mínimo 6 caracteres';
+  if (payload.phone.replace(/\D/g, '').length < 10) return 'Ingresa un teléfono válido (10 dígitos)';
+  return null;
+}
+
 const ROLES = [
   { value: 'cliente', title: 'Cliente', description: 'Rento o compro equipo y materiales', icon: User },
   { value: 'proveedor', title: 'Proveedor', description: 'Vendo o rento equipo y materiales', icon: Store },
@@ -45,15 +55,23 @@ export default function RegisterScreen() {
 
   async function handleRegister() {
     setError('');
-    if (!payload.email || !payload.password || !payload.full_name || !payload.phone) {
-      const msg = 'Completa los campos obligatorios';
-      setError(msg);
-      notify('Error', msg);
+    const validationError = validateRegister(payload);
+    if (validationError) {
+      setError(validationError);
+      notify('Error', validationError);
       return;
     }
+    const cleanPayload: RegisterPayload = {
+      ...payload,
+      email: payload.email.trim().toLowerCase(),
+      full_name: payload.full_name.trim(),
+      phone: payload.phone.trim(),
+      address: payload.address?.trim() || '',
+      profession: payload.profession?.trim() || '',
+    };
     try {
       setLoading(true);
-      await register(payload);
+      await register(cleanPayload);
       router.replace('/(auth)/verify');
     } catch (err: any) {
       const msg = err.message || 'No se pudo registrar';
@@ -136,14 +154,14 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   scroll: { padding: spacing.xxl, paddingBottom: spacing.xxxl * 2 },
   card: Platform.select({
-    web: { maxWidth: 520, width: '100%', alignSelf: 'center', backgroundColor: colors.card, borderRadius: radii.xl, padding: spacing.xxxl, borderWidth: 1, borderColor: colors.border, ...shadows.lg },
+    web: { maxWidth: 520, width: '100%', alignSelf: 'center', backgroundColor: colors.card, borderRadius: radii.lg, padding: spacing.xxxl, borderWidth: 1, borderColor: colors.border, ...shadows.lg },
     default: {},
   }) as object,
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xxl },
   headerIcon: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', marginRight: spacing.md },
   title: { fontSize: 24, fontWeight: '800', color: colors.textPrimary },
   label: { fontSize: 13, fontWeight: '600', color: colors.textSecondary, marginBottom: spacing.sm, marginTop: spacing.xs },
-  errorText: { fontSize: 14, color: '#dc2626', backgroundColor: '#fef2f2', borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.lg },
+  errorText: { fontSize: 14, color: colors.danger, backgroundColor: colors.dangerBg, borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.lg },
   roleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.lg },
   submitBtnWrapper: { marginTop: spacing.lg, alignItems: 'center' },
   submitBtn: { width: '100%', maxWidth: 320, alignSelf: 'center' },

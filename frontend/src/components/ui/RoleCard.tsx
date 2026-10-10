@@ -20,7 +20,11 @@ export default function RoleCard({ icon, title, description, selected, onPress }
         onPress={onPress}
         onPressIn={() => Animated.spring(scale, { toValue: 0.98, useNativeDriver: true, speed: 50, bounciness: 0 }).start()}
         onPressOut={() => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 6 }).start()}
-        style={[styles.card, selected && styles.cardSelected]}
+        style={({ hovered }: any) => [
+          styles.card,
+          hovered && !selected && styles.cardHovered,
+          selected && styles.cardSelected,
+        ]}
       >
         <View style={[styles.iconBox, selected && styles.iconBoxSelected]}>{icon}</View>
         <Text style={[styles.title, selected && styles.titleSelected]}>{title}</Text>
@@ -44,6 +48,10 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.lg,
     ...shadows.sm,
+  },
+  cardHovered: {
+    borderColor: colors.borderStrong,
+    ...shadows.md,
   },
   cardSelected: {
     borderColor: colors.primary,

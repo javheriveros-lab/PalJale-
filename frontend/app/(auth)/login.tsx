@@ -43,7 +43,7 @@ export default function LoginScreen() {
     }
     try {
       setLoading(true);
-      await login(email, password);
+      await login(email.trim().toLowerCase(), password);
       router.replace('/(tabs)');
     } catch (err: any) {
       const msg = err.message || 'No se pudo iniciar sesión';
@@ -99,13 +99,13 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, padding: spacing.xxl, justifyContent: 'center' },
   card: Platform.select({
-    web: { maxWidth: 420, width: '100%', alignSelf: 'center', backgroundColor: colors.card, borderRadius: radii.xl, padding: spacing.xxxl, borderWidth: 1, borderColor: colors.border, ...shadows.lg },
+    web: { maxWidth: 420, width: '100%', alignSelf: 'center', backgroundColor: colors.card, borderRadius: radii.lg, padding: spacing.xxxl, borderWidth: 1, borderColor: colors.border, ...shadows.lg },
     default: {},
   }) as object,
-  logoBox: { alignSelf: 'center', marginBottom: spacing.lg, backgroundColor: colors.card, borderRadius: radii.xl, padding: spacing.lg, ...shadows.md },
+  logoBox: { alignSelf: 'center', marginBottom: spacing.lg, backgroundColor: colors.card, borderRadius: radii.lg, padding: spacing.lg, ...shadows.md },
   title: { fontSize: 28, fontWeight: '800', color: colors.textPrimary, textAlign: 'center' },
   subtitle: { fontSize: 14, color: colors.textMuted, textAlign: 'center', marginBottom: spacing.xxl, marginTop: spacing.xs },
-  errorText: { fontSize: 14, color: '#dc2626', backgroundColor: '#fef2f2', borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.lg },
+  errorText: { fontSize: 14, color: colors.danger, backgroundColor: colors.dangerBg, borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.lg },
   submitBtn: { marginTop: spacing.sm },
   linkBtn: { marginTop: spacing.xl, alignSelf: 'center' },
   linkText: { color: colors.textMuted, fontSize: 14 },

@@ -33,7 +33,13 @@ export default function Button({ title, onPress, variant = 'primary', loading, d
         onPressIn={pressIn}
         onPressOut={pressOut}
         disabled={isDisabled}
-        style={[styles.base, variantStyles[variant], isDisabled && styles.disabled, style]}
+        style={({ hovered }: any) => [
+          styles.base,
+          variantStyles[variant],
+          hovered && !isDisabled && hoverVariantStyles[variant],
+          isDisabled && styles.disabled,
+          style,
+        ]}
       >
         {loading ? (
           <ActivityIndicator color={variant === 'outline' ? colors.primary : colors.white} />
@@ -66,6 +72,15 @@ const variantStyles: Record<Variant, ViewStyle> = {
   secondary: { backgroundColor: colors.textPrimary },
   outline: { backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border },
   danger: { backgroundColor: colors.danger },
+};
+
+// Solo tiene efecto en web — react-native-web traduce `hovered` del Pressable
+// a un estilo real; en iOS/Android no hay puntero, así que no se aplica.
+const hoverVariantStyles: Record<Variant, ViewStyle> = {
+  primary: { backgroundColor: colors.primaryDark },
+  secondary: { backgroundColor: '#000000' },
+  outline: { backgroundColor: colors.cardMuted, borderColor: colors.borderStrong },
+  danger: { backgroundColor: '#b91c1c' },
 };
 
 const textVariantStyles: Record<Variant, { color: string }> = {
