@@ -71,7 +71,18 @@ for origin in default_dev_origins:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_origin_regex=os.getenv("CORS_ORIGIN_REGEX", r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"),
+    # El regex también cubre cualquier *.up.railway.app: el dominio público
+    # que Railway genera para el servicio web no está garantizado a quedarse
+    # fijo (cambia si el servicio se recrea), y ALLOWED_ORIGINS/FRONTEND_URL
+    # son variables manuales que ya se nos olvidó configurar una vez — un
+    # fetch del navegador a ese dominio sin este regex falla en silencio
+    # como "Disallowed CORS origin" (sin cabecera access-control-allow-origin),
+    # lo cual el navegador reporta como un simple fallo de red, indistinguible
+    # de un problema de conexión del usuario.
+    allow_origin_regex=os.getenv(
+        "CORS_ORIGIN_REGEX",
+        r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^https://[a-zA-Z0-9-]+\.up\.railway\.app$",
+    ),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

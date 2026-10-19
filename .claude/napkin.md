@@ -7,10 +7,13 @@
 - Each item includes date + "Do instead".
 
 ## Backend (Python/FastAPI) Gotchas
-1. **[2026-10-09] `passlib[bcrypt]` breaks with bcrypt 4.1+/5.x**
+1. **[2026-10-19] "No se pudo conectar con el servidor" in the deployed web app is almost always CORS, not DNS/network**
+   User reported that exact string (it's `client.ts`'s own catch-all message for a failed `fetch()`) and burned 5 turns on DNS/`ipconfig /flushdns`/ping troubleshooting on their machine — the real cause was the backend's CORS middleware rejecting the frontend's actual origin (`curl -i <backend>/api/products -H "Origin: <frontend>"` came back with no `access-control-allow-origin` header, and an OPTIONS preflight returned `400 Disallowed CORS origin`). `curl` ignores CORS entirely so a plain request "working" from the terminal proves nothing about whether the browser can actually use it.
+   Do instead: the moment a user reports a generic connection-failed error from the deployed site (not a dev tool), immediately test CORS first: `curl -i <backend-url>/<any-get-endpoint> -H "Origin: <exact-frontend-origin>"` and check for `access-control-allow-origin` in the response, before ever asking the user to touch DNS, their firewall, or their network.
+2. **[2026-10-09] `passlib[bcrypt]` breaks with bcrypt 4.1+/5.x**
    `CryptContext.hash()`/`.verify()` crash with `ValueError: password cannot be longer than 72 bytes` during passlib's own internal `detect_wrap_bug` self-test — not caused by a long user password, happens on first hash/verify call after install.
    Do instead: pin `bcrypt==4.0.1` in requirements.txt alongside `passlib[bcrypt]`. Also defensively truncate any password to 72 bytes (`password.encode('utf-8')[:72]`) before passing to passlib, since real long passwords hit the same ValueError even with a fixed bcrypt version.
-2. **[2026-10-09] Any registration/login 500 reproduces fastest via direct curl, not UI**
+3. **[2026-10-09] Any registration/login 500 reproduces fastest via direct curl, not UI**
    `curl -i -X POST <backend>/api/auth/register -d '{...}'` against the live/prod URL shows the real status code and body instantly — the frontend's error handling (or lack of it) otherwise hides whether it's a 500 (backend bug) vs 404 (wrong URL) vs HTML (misconfigured env var).
    Do instead: when a form "does nothing" or shows a cryptic client-side parse error, curl the backend endpoint directly first before touching frontend code.
 
