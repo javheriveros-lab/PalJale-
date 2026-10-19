@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, Redirect } from 'expo-router';
 import { apiClient } from '../../src/api/client';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { Order } from '../../src/types/models';
@@ -12,6 +12,9 @@ const THEME_ORANGE = '#F37820';
 export default function OrdersScreen() {
   const router = useRouter();
   const { user } = useAuth();
+
+  if (!user) return <Redirect href="/(auth)/login" />;
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
 

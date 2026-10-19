@@ -11,16 +11,21 @@ import {
   TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, Redirect } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { getCart, removeCartItem, updateCartItem, checkoutCart, CartItem } from '../../src/api/cart';
+import { useAuth } from '../../src/contexts/AuthContext';
 import { ArrowLeft, Trash2, ShoppingCart, CreditCard, Calendar } from 'lucide-react-native';
 
 const THEME_ORANGE = '#F37820';
 
 export default function CartScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ payment?: string }>();
+
+  if (!user) return <Redirect href="/(auth)/login" />;
+
   const [cart, setCart] = useState<{ items: CartItem[]; total_mxn: number; platform_fee_mxn: number; grand_total_mxn: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);

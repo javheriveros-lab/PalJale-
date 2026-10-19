@@ -40,14 +40,22 @@ export default function ProductDetailScreen() {
 
   async function loadData() {
     try {
-      const [p, me] = await Promise.all([apiClient(`/api/products/${id}`), apiClient('/api/auth/me')]);
+      const p = await apiClient(`/api/products/${id}`);
       setProduct(p);
-      setUser(me);
     } catch (err: any) {
       notify('Error', err.message || 'No se pudo cargar el producto');
       console.error('Error al cargar producto:', err);
     } finally {
       setLoading(false);
+    }
+    // El visitante puede no tener sesión — eso es válido (puede ver el
+    // producto sin cuenta), así que esta llamada va separada y su error
+    // (401) se ignora en silencio en vez de bloquear la página completa.
+    try {
+      const me = await apiClient('/api/auth/me');
+      setUser(me);
+    } catch {
+      setUser(null);
     }
   }
 
@@ -62,8 +70,13 @@ export default function ProductDetailScreen() {
   }
 
   async function handleOrder() {
-    if (!user || !product) return;
+    if (!product) return;
     setError('');
+    if (!user) {
+      notify('Inicia sesión', 'Crea una cuenta o inicia sesión para solicitar este producto.');
+      router.push('/(auth)/login');
+      return;
+    }
     if (user.verification_status !== 'verificado') {
       notify('Verificación requerida', 'Completa tu verificación de identidad antes de solicitar.');
       router.push('/(auth)/verify');
