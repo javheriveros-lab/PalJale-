@@ -89,6 +89,19 @@ Crea el admin inicial y la configuración global:
 ./venv/Scripts/python.exe scripts/seed.py
 ```
 
+Para poblar el catálogo con productos de prueba (proveedor demo +
+~12 productos de ejemplo con imágenes placeholder, cubriendo
+maquinaria/herramientas/materiales/personal):
+
+```bash
+./venv/Scripts/python.exe scripts/seed_products.py
+```
+
+Es idempotente (correrlo varias veces no duplica productos) y usa
+`bcrypt` directo en vez de `passlib` para el usuario demo, así que
+funciona incluso si el deploy activo todavía tiene el bug conocido de
+`passlib` + `bcrypt` 4.1+/5.x (ver `.claude/napkin.md`).
+
 ## 4. Ejecutar en desarrollo
 
 ```bash
