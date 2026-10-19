@@ -1,15 +1,16 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, Image, ActivityIndicator, Alert, Platform } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, FlatList, Image, ActivityIndicator, Alert, Platform, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { apiClient } from '../../src/api/client';
 import { Product, Category, TransactionType } from '../../src/types/models';
-import { Search, SlidersHorizontal, Package } from 'lucide-react-native';
+import { Search, SlidersHorizontal, Package, Star } from 'lucide-react-native';
 import { colors, spacing, radii, shadows } from '../../src/theme';
 
 const CATEGORIES: Category[] = ['maquinaria', 'herramientas', 'materiales', 'personal'];
 const TRANSACTIONS: TransactionType[] = ['venta', 'renta'];
 const IS_WEB = Platform.OS === 'web';
+const CARD_MIN_WIDTH = 230;
 
 function notify(title: string, message: string) {
   if (Platform.OS === 'web') {
@@ -22,11 +23,14 @@ function notify(title: string, message: string) {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [q, setQ] = useState('');
   const [category, setCategory] = useState<Category | null>(null);
   const [transactionType, setTransactionType] = useState<TransactionType | null>(null);
+
+  const numColumns = IS_WEB ? Math.max(2, Math.min(6, Math.floor(width / CARD_MIN_WIDTH))) : 1;
 
   const loadProducts = useCallback(async () => {
     try {
@@ -49,18 +53,30 @@ export default function HomeScreen() {
 
   function renderItem({ item }: { item: Product }) {
     return (
-      <TouchableOpacity style={[styles.card, IS_WEB && styles.cardWeb]} onPress={() => router.push(`/product/${item.id}`)}>
+      <Pressable
+        onPress={() => router.push(`/product/${item.id}`)}
+        style={({ hovered }: any) => [styles.card, IS_WEB && styles.cardWeb, IS_WEB && hovered && styles.cardHovered]}
+      >
         {item.image_url ? (
           <Image source={{ uri: item.image_url }} style={[styles.image, IS_WEB && styles.imageWeb]} />
         ) : (
           <View style={[styles.image, IS_WEB && styles.imageWeb, styles.imagePlaceholder]}><Package size={22} color={colors.textPlaceholder} /></View>
         )}
         <View style={styles.cardBody}>
-          <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-          <Text style={styles.cardType}>{item.transaction_type} • {item.category}</Text>
+          <View style={styles.cardBadgeRow}>
+            <View style={styles.typePill}><Text style={styles.typePillText}>{item.transaction_type}</Text></View>
+            <Text style={styles.cardCategory}>{item.category}</Text>
+          </View>
+          <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
           <Text style={styles.cardPrice}>${item.price_mxn.toLocaleString()} MXN</Text>
+          {item.rating > 0 && (
+            <View style={styles.ratingRow}>
+              <Star size={13} color={colors.warning} fill={colors.warning} />
+              <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
+            </View>
+          )}
         </View>
-      </TouchableOpacity>
+      </Pressable>
     );
   }
 
@@ -77,20 +93,20 @@ export default function HomeScreen() {
       </View>
       <View style={styles.filterRow}>
         <SlidersHorizontal size={16} color={colors.textMuted} />
-        <TouchableOpacity style={[styles.filterChip, !category && styles.filterActive]} onPress={() => setCategory(null)}>
+        <Pressable style={({ hovered }: any) => [styles.filterChip, !category && styles.filterActive, IS_WEB && hovered && !!category && styles.filterChipHovered]} onPress={() => setCategory(null)}>
           <Text style={[styles.filterText, !category && styles.filterTextActive]}>Todas</Text>
-        </TouchableOpacity>
+        </Pressable>
         {CATEGORIES.map((c) => (
-          <TouchableOpacity key={c} style={[styles.filterChip, category === c && styles.filterActive]} onPress={() => setCategory(c)}>
+          <Pressable key={c} style={({ hovered }: any) => [styles.filterChip, category === c && styles.filterActive, IS_WEB && hovered && category !== c && styles.filterChipHovered]} onPress={() => setCategory(c)}>
             <Text style={[styles.filterText, category === c && styles.filterTextActive]}>{c}</Text>
-          </TouchableOpacity>
+          </Pressable>
         ))}
       </View>
       <View style={styles.typeRow}>
         {TRANSACTIONS.map((t) => (
-          <TouchableOpacity key={t} style={[styles.typeChip, transactionType === t && styles.typeActive]} onPress={() => setTransactionType(transactionType === t ? null : t)}>
+          <Pressable key={t} style={({ hovered }: any) => [styles.typeChip, transactionType === t && styles.typeActive, IS_WEB && hovered && transactionType !== t && styles.filterChipHovered]} onPress={() => setTransactionType(transactionType === t ? null : t)}>
             <Text style={[styles.typeText, transactionType === t && styles.typeTextActive]}>{t}</Text>
-          </TouchableOpacity>
+          </Pressable>
         ))}
       </View>
       {loading ? <ActivityIndicator style={styles.loader} color={colors.primary} /> : (
@@ -98,8 +114,8 @@ export default function HomeScreen() {
           data={products}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          numColumns={IS_WEB ? 3 : 1}
-          key={IS_WEB ? 'web-grid' : 'mobile-list'}
+          numColumns={numColumns}
+          key={`grid-${numColumns}`}
           columnWrapperStyle={IS_WEB ? styles.row : undefined}
           contentContainerStyle={styles.list}
           ListEmptyComponent={<Text style={styles.empty}>No se encontraron productos</Text>}
@@ -117,6 +133,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, paddingVertical: 12, marginLeft: spacing.md, fontSize: 15, color: colors.textPrimary },
   filterRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, paddingHorizontal: spacing.md, paddingVertical: spacing.md, marginTop: spacing.sm, marginHorizontal: spacing.lg, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border },
   filterChip: { backgroundColor: colors.cardMuted, borderRadius: radii.full, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, marginLeft: spacing.sm },
+  filterChipHovered: { backgroundColor: colors.border },
   filterActive: { backgroundColor: colors.primary },
   filterText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, textTransform: 'capitalize' },
   filterTextActive: { color: colors.white },
@@ -129,13 +146,25 @@ const styles = StyleSheet.create({
   list: { padding: spacing.lg, paddingBottom: 40 },
   row: { gap: spacing.md },
   card: { flex: 1, flexDirection: 'row', backgroundColor: colors.card, borderRadius: radii.md, marginBottom: spacing.md, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
-  cardWeb: { flexDirection: 'column', ...shadows.sm },
+  cardWeb: {
+    flexDirection: 'column',
+    ...shadows.sm,
+    transitionProperty: 'transform, box-shadow',
+    transitionDuration: '160ms',
+    transitionTimingFunction: 'ease-out',
+  } as any,
+  cardHovered: { transform: [{ translateY: -3 }], borderColor: colors.borderStrong, ...shadows.md },
   image: { width: 100, height: 100, backgroundColor: colors.cardMuted },
   imageWeb: { width: '100%', height: 140 },
   imagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
   cardBody: { flex: 1, padding: spacing.md, justifyContent: 'center' },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: colors.textPrimary },
-  cardType: { fontSize: 12, color: colors.textMuted, marginTop: spacing.xs, textTransform: 'capitalize' },
-  cardPrice: { fontSize: 15, fontWeight: '700', color: colors.primary, marginTop: spacing.sm },
+  cardBadgeRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs },
+  typePill: { backgroundColor: colors.primarySoft, borderRadius: radii.sm, paddingHorizontal: spacing.sm, paddingVertical: 2, marginRight: spacing.sm },
+  typePillText: { fontSize: 10, fontWeight: '700', color: colors.primaryDark, textTransform: 'uppercase', letterSpacing: 0.3 },
+  cardCategory: { fontSize: 11, color: colors.textMuted, textTransform: 'capitalize' },
+  cardTitle: { fontSize: 14, fontWeight: '600', color: colors.textPrimary, lineHeight: 18 },
+  cardPrice: { fontSize: 18, fontWeight: '800', color: colors.textPrimary, marginTop: spacing.sm },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.xs, gap: 4 },
+  ratingText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
   empty: { textAlign: 'center', color: colors.textMuted, marginTop: 40 },
 });
