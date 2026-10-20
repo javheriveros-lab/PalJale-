@@ -7,7 +7,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import S3ImagePicker from '../../src/components/S3ImagePicker';
 import Button from '../../src/components/ui/Button';
 import { ShieldCheck } from 'lucide-react-native';
-import { colors, spacing, radii, shadows } from '../../src/theme';
+import { colors, spacing, radii, shadows, fonts } from '../../src/theme';
 
 function notify(title: string, message: string, onOk?: () => void) {
   if (Platform.OS === 'web') {
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
   }) as object,
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.lg },
   headerIcon: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', marginRight: spacing.md },
-  title: { fontSize: 24, fontWeight: '800', color: colors.textPrimary },
+  title: { fontSize: 26, fontFamily: fonts.displayBold, letterSpacing: 0.3, color: colors.textPrimary, textTransform: 'uppercase' },
   desc: { fontSize: 14, color: colors.textMuted, lineHeight: 20, marginBottom: spacing.xxl },
   errorText: { fontSize: 14, color: colors.danger, backgroundColor: colors.dangerBg, borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.lg },
   label: { fontSize: 13, fontWeight: '600', color: colors.textSecondary, marginBottom: spacing.md, marginTop: spacing.xl },

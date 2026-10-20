@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { Home, MapPin, ClipboardList, User, ShoppingCart, LogIn } from 'lucide-react-native';
-import { colors, spacing, radii, shadows } from '../theme';
+import { colors, spacing, radii, shadows, fonts } from '../theme';
 import { useAuth } from '../contexts/AuthContext';
 import Logo from './ui/Logo';
 
@@ -46,7 +46,7 @@ export default function WebAppShell({ children }: { children: React.ReactNode })
                   style={({ hovered }: any) => [styles.link, active && styles.linkActive, hovered && !active && styles.linkHovered]}
                   onPress={() => router.push(item.href as any)}
                 >
-                  <Icon size={17} color={active ? colors.primary : colors.textMuted} />
+                  <Icon size={17} color={active ? colors.accent : '#a8a29e'} />
                   <Text style={[styles.linkText, active && styles.linkTextActive]}>{item.label}</Text>
                 </Pressable>
               );
@@ -72,7 +72,9 @@ export default function WebAppShell({ children }: { children: React.ReactNode })
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  navbar: { backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border, ...shadows.sm },
+  // Barra oscura de alto contraste en vez del navbar blanco genérico —
+  // más cercana a una señalética de obra que a una plantilla de SaaS.
+  navbar: { backgroundColor: colors.textPrimary, borderBottomWidth: 3, borderBottomColor: colors.primary },
   navInner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -84,13 +86,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   brand: { flexDirection: 'row', alignItems: 'center' },
-  brandText: { marginLeft: spacing.sm, fontSize: 17, fontWeight: '800', color: colors.textPrimary },
+  brandText: { marginLeft: spacing.sm, fontSize: 19, fontFamily: fonts.displayBold, letterSpacing: 0.5, color: colors.white, textTransform: 'uppercase' },
   links: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  link: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radii.md },
-  linkActive: { backgroundColor: colors.primarySoft },
-  linkHovered: { backgroundColor: colors.cardMuted },
-  linkText: { marginLeft: spacing.sm, fontSize: 14, fontWeight: '600', color: colors.textMuted },
-  linkTextActive: { color: colors.primaryDark },
+  link: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radii.sm, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  linkActive: { borderBottomColor: colors.accent },
+  linkHovered: { backgroundColor: 'rgba(255,255,255,0.06)' },
+  linkText: { marginLeft: spacing.sm, fontSize: 14, fontWeight: '600', color: '#a8a29e' },
+  linkTextActive: { color: colors.white },
   loginBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primary, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radii.md, marginLeft: spacing.sm, ...shadows.sm },
   loginBtnHovered: { backgroundColor: colors.primaryDark },
   loginBtnText: { marginLeft: spacing.sm, fontSize: 14, fontWeight: '700', color: colors.white },

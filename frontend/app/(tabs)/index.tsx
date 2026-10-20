@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { apiClient } from '../../src/api/client';
 import { Product, Category, TransactionType } from '../../src/types/models';
 import { Search, SlidersHorizontal, Package, Star } from 'lucide-react-native';
-import { colors, spacing, radii, shadows } from '../../src/theme';
+import { colors, spacing, radii, shadows, fonts } from '../../src/theme';
 
 const CATEGORIES: Category[] = ['maquinaria', 'herramientas', 'materiales', 'personal'];
 const TRANSACTIONS: TransactionType[] = ['venta', 'renta'];
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   typePillText: { fontSize: 10, fontWeight: '700', color: colors.primaryDark, textTransform: 'uppercase', letterSpacing: 0.3 },
   cardCategory: { fontSize: 11, color: colors.textMuted, textTransform: 'capitalize' },
   cardTitle: { fontSize: 14, fontWeight: '600', color: colors.textPrimary, lineHeight: 18 },
-  cardPrice: { fontSize: 18, fontWeight: '800', color: colors.textPrimary, marginTop: spacing.sm },
+  cardPrice: { fontSize: 19, fontFamily: fonts.displayBold, color: colors.textPrimary, marginTop: spacing.sm },
   ratingRow: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.xs, gap: 4 },
   ratingText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
   empty: { textAlign: 'center', color: colors.textMuted, marginTop: 40 },

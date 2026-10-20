@@ -7,7 +7,7 @@ import { useAuth, RegisterPayload } from '../../src/contexts/AuthContext';
 import TextField from '../../src/components/ui/TextField';
 import Button from '../../src/components/ui/Button';
 import RoleCard from '../../src/components/ui/RoleCard';
-import { colors, spacing, radii, shadows } from '../../src/theme';
+import { colors, spacing, radii, shadows, fonts } from '../../src/theme';
 
 function notify(title: string, message: string) {
   if (Platform.OS === 'web') {
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   }) as object,
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xxl },
   headerIcon: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', marginRight: spacing.md },
-  title: { fontSize: 24, fontWeight: '800', color: colors.textPrimary },
+  title: { fontSize: 26, fontFamily: fonts.displayBold, letterSpacing: 0.3, color: colors.textPrimary, textTransform: 'uppercase' },
   label: { fontSize: 13, fontWeight: '600', color: colors.textSecondary, marginBottom: spacing.sm, marginTop: spacing.xs },
   errorText: { fontSize: 14, color: colors.danger, backgroundColor: colors.dangerBg, borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.lg },
   roleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.lg },

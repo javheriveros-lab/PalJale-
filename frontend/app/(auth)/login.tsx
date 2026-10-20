@@ -7,7 +7,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import TextField from '../../src/components/ui/TextField';
 import Button from '../../src/components/ui/Button';
 import Logo from '../../src/components/ui/Logo';
-import { colors, spacing, radii, shadows } from '../../src/theme';
+import { colors, spacing, radii, shadows, fonts } from '../../src/theme';
 
 function notify(title: string, message: string) {
   if (Platform.OS === 'web') {
@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     default: {},
   }) as object,
   logoBox: { alignSelf: 'center', marginBottom: spacing.lg, backgroundColor: colors.card, borderRadius: radii.lg, padding: spacing.lg, ...shadows.md },
-  title: { fontSize: 28, fontWeight: '800', color: colors.textPrimary, textAlign: 'center' },
+  title: { fontSize: 32, fontFamily: fonts.displayBold, letterSpacing: 0.5, color: colors.textPrimary, textAlign: 'center', textTransform: 'uppercase' },
   subtitle: { fontSize: 14, color: colors.textMuted, textAlign: 'center', marginBottom: spacing.xxl, marginTop: spacing.xs },
   errorText: { fontSize: 14, color: colors.danger, backgroundColor: colors.dangerBg, borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.lg },
   submitBtn: { marginTop: spacing.sm },

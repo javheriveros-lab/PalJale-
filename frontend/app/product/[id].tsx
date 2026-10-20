@@ -9,7 +9,7 @@ import RouteMap from '../../src/components/RouteMap';
 import Button from '../../src/components/ui/Button';
 import { Product, User } from '../../src/types/models';
 import { Star, Truck, ShieldCheck } from 'lucide-react-native';
-import { colors, spacing, radii, shadows } from '../../src/theme';
+import { colors, spacing, radii, shadows, fonts } from '../../src/theme';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -207,10 +207,10 @@ const styles = StyleSheet.create({
   typePill: { backgroundColor: colors.primarySoft, borderRadius: radii.sm, paddingHorizontal: spacing.sm, paddingVertical: 2, marginRight: spacing.sm },
   typePillText: { fontSize: 10, fontWeight: '700', color: colors.primaryDark, textTransform: 'uppercase', letterSpacing: 0.3 },
   category: { fontSize: 12, color: colors.textMuted, textTransform: 'capitalize' },
-  title: { fontSize: 19, fontWeight: '800', color: colors.textPrimary, lineHeight: 24 },
+  title: { fontSize: 20, fontFamily: fonts.displaySemiBold, color: colors.textPrimary, lineHeight: 25 },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.xs },
   ratingText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
-  price: { fontSize: 26, fontWeight: '800', color: colors.textPrimary, marginTop: spacing.md },
+  price: { fontSize: 30, fontFamily: fonts.displayBold, color: colors.textPrimary, marginTop: spacing.md },
   infoRow: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.md, gap: spacing.sm },
   infoText: { fontSize: 13, color: colors.textMuted, flex: 1, lineHeight: 18 },
   errorText: { fontSize: 13, color: colors.danger, backgroundColor: colors.dangerBg, borderRadius: radii.md, padding: spacing.sm, marginTop: spacing.lg },
