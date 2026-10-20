@@ -1,10 +1,19 @@
 import React, { useState } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { getPresignedUploadUrl, uploadFileToS3 } from '../api/storage';
+import { uploadImage } from '../api/storage';
 import { Camera, X, Upload } from 'lucide-react-native';
 
 const THEME_ORANGE = '#F37820';
+
+function notify(title: string, message: string) {
+  if (Platform.OS === 'web') {
+    // eslint-disable-next-line no-alert
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+}
 
 interface Props {
   folder: string;
@@ -17,9 +26,9 @@ export default function S3MultiImagePicker({ folder, images, onChange, max = 5 }
   const [uploading, setUploading] = useState(false);
 
   async function pickAndUpload() {
-    if (images.length >= max) { Alert.alert('Límite alcanzado', `Máximo ${max} imágenes`); return; }
+    if (images.length >= max) { notify('Límite alcanzado', `Máximo ${max} imágenes`); return; }
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) { Alert.alert('Permiso requerido', 'Se necesita acceso a la galería'); return; }
+    if (!permission.granted) { notify('Permiso requerido', 'Se necesita acceso a la galería'); return; }
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -27,6 +36,7 @@ export default function S3MultiImagePicker({ folder, images, onChange, max = 5 }
       quality: 0.8,
       allowsMultipleSelection: true,
       selectionLimit: max - images.length,
+      base64: true,
     });
 
     if (result.canceled || !result.assets?.length) return;
@@ -35,16 +45,17 @@ export default function S3MultiImagePicker({ folder, images, onChange, max = 5 }
     try {
       const uploadedUrls: string[] = [];
       for (const asset of result.assets) {
-        const response = await fetch(asset.uri);
-        const blob = await response.blob();
+        if (!asset.base64) continue;
+        const mimeType = asset.mimeType || 'image/jpeg';
+        const dataUri = `data:${mimeType};base64,${asset.base64}`;
         const filename = asset.uri.split('/').pop() || 'image.jpg';
-        const { signed_url, public_url } = await getPresignedUploadUrl(filename, blob.type || 'image/jpeg', folder);
-        await uploadFileToS3(blob, signed_url);
-        uploadedUrls.push(public_url);
+        const url = await uploadImage(dataUri, filename, folder);
+        uploadedUrls.push(url);
       }
       onChange([...images, ...uploadedUrls]);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'No se pudieron subir las imágenes');
+      notify('Error', err.message || 'No se pudieron subir las imágenes');
+      console.error('Error al subir imágenes:', err);
     } finally {
       setUploading(false);
     }

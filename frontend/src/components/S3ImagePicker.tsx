@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, TouchableOpacity, Image, StyleSheet, ActivityIndicator, Alert, Platform, Text } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { getPresignedUploadUrl, uploadFileToS3 } from '../api/storage';
+import { uploadImage } from '../api/storage';
 import { Camera, Upload } from 'lucide-react-native';
 
 const THEME_ORANGE = '#F37820';
@@ -26,17 +26,17 @@ export default function S3ImagePicker({ folder, onUploaded, existingUrl, size = 
     setError('');
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) { notify('Permiso requerido', 'Se necesita acceso a la galería'); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.8 });
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.8, base64: true });
     if (result.canceled || !result.assets?.[0]) return;
     const asset = result.assets[0];
+    if (!asset.base64) { notify('Error', 'No se pudo leer la imagen seleccionada'); return; }
     setLoading(true);
     try {
-      const response = await fetch(asset.uri);
-      const blob = await response.blob();
+      const mimeType = asset.mimeType || 'image/jpeg';
+      const dataUri = `data:${mimeType};base64,${asset.base64}`;
       const filename = asset.uri.split('/').pop() || 'image.jpg';
-      const { signed_url, public_url } = await getPresignedUploadUrl(filename, blob.type || 'image/jpeg', folder);
-      await uploadFileToS3(blob, signed_url);
-      setPreview(public_url); onUploaded(public_url);
+      const url = await uploadImage(dataUri, filename, folder);
+      setPreview(url); onUploaded(url);
     } catch (err: any) {
       const msg = err.message || 'No se pudo subir la imagen';
       setError(msg);

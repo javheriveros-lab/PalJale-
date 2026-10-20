@@ -16,6 +16,9 @@ os.environ.setdefault("ADMIN_EMAIL", "admin@paljale.mx")
 os.environ.setdefault("ADMIN_PASSWORD", "test-admin-pass")
 os.environ.setdefault("BANK_DATA_ENCRYPTION_KEY", Fernet.generate_key().decode())
 os.environ.setdefault("FRONTEND_URL", "https://paljale.mx")
+os.environ.setdefault("IMAGEKIT_PRIVATE_KEY", "private_test")
+os.environ.setdefault("IMAGEKIT_PUBLIC_KEY", "public_test")
+os.environ.setdefault("IMAGEKIT_URL_ENDPOINT", "https://ik.imagekit.io/test")
 
 import pytest
 import pytest_asyncio

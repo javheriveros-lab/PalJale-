@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime
 from database import get_db
 from auth_utils import get_current_user, UserContext
-from storage import upload_base64_to_s3
+from storage import upload_base64_image
 from notifications import on_order_delivered, on_damage_reported
 
 router = APIRouter(tags=["Orders Checklist"])
@@ -17,7 +17,7 @@ async def delivery_checklist(order_id: str, payload: dict, user: UserContext = D
     foto_urls = []
     for photo in fotos:
         if photo.startswith("data:"):
-            foto_urls.append(upload_base64_to_s3(photo, f"checklists/{order_id}/delivery", "jpg"))
+            foto_urls.append(upload_base64_image(photo, f"checklists/{order_id}/delivery", "jpg"))
         elif photo.startswith("http"):
             foto_urls.append(photo)
         else:
@@ -37,7 +37,7 @@ async def return_checklist(order_id: str, payload: dict, user: UserContext = Dep
     foto_urls = []
     for photo in fotos:
         if photo.startswith("data:"):
-            foto_urls.append(upload_base64_to_s3(photo, f"checklists/{order_id}/return", "jpg"))
+            foto_urls.append(upload_base64_image(photo, f"checklists/{order_id}/return", "jpg"))
         elif photo.startswith("http"):
             foto_urls.append(photo)
         else:
