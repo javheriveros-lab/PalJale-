@@ -18,7 +18,7 @@ export default function DropoffTrackingScreen() {
   const [loading, setLoading] = useState(true);
   const [isProvider, setIsProvider] = useState(false);
   const [trackingActive, setTrackingActive] = useState(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadOrder = useCallback(async () => {
     try {

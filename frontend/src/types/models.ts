@@ -66,6 +66,12 @@ export interface Order {
   total_mxn: number;
   status: OrderStatus;
   payment_status: PaymentStatus;
+  return_checklist?: {
+    report_damage?: boolean;
+    notes?: string;
+    [key: string]: any;
+  } | null;
+  provider_payout_status?: string | null;
   created_at: string;
   updated_at: string;
 }
