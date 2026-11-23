@@ -76,14 +76,25 @@ export default function ProfileScreen() {
         )}
 
         {user.role === 'admin' && (
-          <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/admin/user-payments')}>
-            <View style={styles.menuIconBox}><ShieldCheck size={20} color={colors.primary} /></View>
-            <View style={styles.menuTextBox}>
-              <Text style={styles.menuTitle}>Métodos de pago (admin)</Text>
-              <Text style={styles.menuDesc}>Consulta de solo lectura para soporte</Text>
-            </View>
-            <ChevronRight size={18} color={colors.textMuted} />
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/admin/kyc-review')}>
+              <View style={styles.menuIconBox}><ShieldCheck size={20} color={colors.primary} /></View>
+              <View style={styles.menuTextBox}>
+                <Text style={styles.menuTitle}>Verificaciones pendientes</Text>
+                <Text style={styles.menuDesc}>Revisa y aprueba INE, selfie y comprobante</Text>
+              </View>
+              <ChevronRight size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/admin/user-payments')}>
+              <View style={styles.menuIconBox}><ShieldCheck size={20} color={colors.primary} /></View>
+              <View style={styles.menuTextBox}>
+                <Text style={styles.menuTitle}>Métodos de pago (admin)</Text>
+                <Text style={styles.menuDesc}>Consulta de solo lectura para soporte</Text>
+              </View>
+              <ChevronRight size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+          </>
         )}
 
         <TouchableOpacity style={[styles.menuItem, styles.logoutItem]} onPress={handleLogout}>

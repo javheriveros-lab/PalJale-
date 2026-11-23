@@ -177,3 +177,26 @@ async def verify_user(user_id: str):
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return {"success": True}
+
+
+@router.post("/users/{user_id}/reject", dependencies=[Depends(require_admin)])
+async def reject_user(user_id: str):
+    db = await get_db()
+    result = await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"verification_status": "rechazada", "updated_at": datetime.utcnow().isoformat()}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return {"success": True}
+
+
+@router.get("/kyc/pending", dependencies=[Depends(require_admin)])
+async def list_pending_kyc():
+    db = await get_db()
+    cursor = db.users.find(
+        {"verification_status": "en_revision"},
+        {"_id": 0, "id": 1, "full_name": 1, "email": 1, "role": 1, "phone": 1, "kyc_data": 1, "updated_at": 1},
+    ).sort("updated_at", 1)
+    items = await cursor.to_list(length=200)
+    return {"items": items, "total": len(items)}

@@ -26,6 +26,23 @@ export interface User {
   updated_at: string;
 }
 
+export interface KycData {
+  ine_front_b64?: string | null;
+  selfie_b64?: string | null;
+  address_proof_b64?: string | null;
+  submitted_at?: string;
+}
+
+export interface KycPendingUser {
+  id: string;
+  full_name: string;
+  email: string;
+  role: Role;
+  phone?: string;
+  kyc_data?: KycData | null;
+  updated_at?: string;
+}
+
 export interface Product {
   id: string;
   title: string;
